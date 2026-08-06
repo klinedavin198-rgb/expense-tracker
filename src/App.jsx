@@ -17,10 +17,15 @@ export default function ExpenseTracker() {
   const [amount, setAmount] = useState("");
   const [type, setType] = useState("expense");
   const [category, setCategory] = useState("ទូទៅ");
-  const [editingId, setEditingId] = useState(null);
 
-  // បន្ថែម State សម្រាប់គ្រប់គ្រងការបង្ហាញ/លាក់ប្រវត្តិ
+  // បន្ថែម State ថ្មីសម្រាប់គ្រប់គ្រង រូបិយប័ណ្ណ
+  const [currency, setCurrency] = useState("USD");
+
+  const [editingId, setEditingId] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
+
+  // កំណត់អត្រាប្តូរប្រាក់ ១ ដុល្លារ = ៤០០០ រៀល
+  const EXCHANGE_RATE = 4000;
 
   useEffect(() => {
     const q = query(
@@ -42,12 +47,19 @@ export default function ExpenseTracker() {
     if (!text || !amount)
       return alert("សូមបញ្ជូលការពិពណ៌នា និងចំនួនទឹកប្រាក់!");
 
+    const numAmount = parseFloat(amount);
+    // បំប្លែងទៅជាដុល្លារជានិច្ច មុននឹងរក្សាទុក ដើម្បីងាយស្រួលបូកដកសមតុល្យ
+    const finalAmountUSD =
+      currency === "KHR" ? numAmount / EXCHANGE_RATE : numAmount;
+
     try {
       if (editingId) {
         const transactionRef = doc(db, "transactions", editingId);
         await updateDoc(transactionRef, {
           text: text,
-          amount: parseFloat(amount),
+          amount: finalAmountUSD,
+          originalAmount: numAmount,
+          currency: currency,
           type: type,
           category: category,
         });
@@ -55,7 +67,9 @@ export default function ExpenseTracker() {
       } else {
         await addDoc(collection(db, "transactions"), {
           text: text,
-          amount: parseFloat(amount),
+          amount: finalAmountUSD, // ទុកសម្រាប់គណនា
+          originalAmount: numAmount, // ទុកសម្រាប់បង្ហាញក្នុងប្រវត្តិ
+          currency: currency, // ចំណាំថាលុយអ្វី
           type: type,
           category: category,
           date: new Date().toLocaleDateString("km-KH"),
@@ -75,11 +89,16 @@ export default function ExpenseTracker() {
 
   const handleEdit = (transaction) => {
     setText(transaction.text);
-    setAmount(transaction.amount.toString());
+    // ទាញយកលុយដើម និងប្រភេទលុយមកបង្ហាញវិញ
+    setAmount(
+      transaction.originalAmount
+        ? transaction.originalAmount.toString()
+        : transaction.amount.toString(),
+    );
+    setCurrency(transaction.currency || "USD");
     setType(transaction.type);
     setCategory(transaction.category);
     setEditingId(transaction.id);
-    // នៅពេលចុចកែប្រែ យើងឱ្យវាបើកផ្ទាំងប្រវត្តិដោយស្វ័យប្រវត្តិ
     setShowHistory(true);
   };
 
@@ -91,6 +110,7 @@ export default function ExpenseTracker() {
     }
   };
 
+  // ការគណនាសមតុល្យ (គិតជាដុល្លារទាំងអស់)
   const totalIncome = transactions
     .filter((t) => t.type === "income")
     .reduce((acc, curr) => acc + curr.amount, 0);
@@ -108,14 +128,18 @@ export default function ExpenseTracker() {
           បញ្ជីចំណូលចំណាយ
         </h1>
 
-        {/* ផ្ទាំងបង្ហាញសមតុល្យ */}
+        {/* ផ្ទាំងបង្ហាញសមតុល្យ ជា ២ រូបិយប័ណ្ណ */}
         <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-6 rounded-2xl mb-8 shadow-md">
           <p className="text-sm font-medium opacity-90 text-center">
             សមតុល្យសរុបបច្ចុប្បន្ន
           </p>
-          <h2 className="text-4xl font-black text-center my-2">
-            ${balance.toFixed(2)}
-          </h2>
+          <div className="text-center my-2">
+            <h2 className="text-4xl font-black">${balance.toFixed(2)}</h2>
+            <p className="text-lg font-bold text-blue-200 mt-1">
+              ≈ {(balance * EXCHANGE_RATE).toLocaleString("km-KH")} ៛
+            </p>
+          </div>
+
           <div className="flex justify-between mt-6 bg-white/10 p-3 rounded-xl backdrop-blur-sm">
             <div className="text-center w-1/2 border-r border-white/20">
               <p className="text-xs font-semibold opacity-80 uppercase tracking-wider">
@@ -123,6 +147,9 @@ export default function ExpenseTracker() {
               </p>
               <p className="font-bold text-green-400 text-lg">
                 +${totalIncome.toFixed(2)}
+              </p>
+              <p className="text-xs font-medium text-green-200">
+                {(totalIncome * EXCHANGE_RATE).toLocaleString("km-KH")} ៛
               </p>
             </div>
             <div className="text-center w-1/2">
@@ -132,20 +159,21 @@ export default function ExpenseTracker() {
               <p className="font-bold text-red-400 text-lg">
                 -${totalExpense.toFixed(2)}
               </p>
+              <p className="text-xs font-medium text-red-200">
+                {(totalExpense * EXCHANGE_RATE).toLocaleString("km-KH")} ៛
+              </p>
             </div>
           </div>
         </div>
 
-        {/* ហ្វមបញ្ចូល ឬកែប្រែទិន្នន័យ */}
+        {/* ហ្វមបញ្ចូលទិន្នន័យ */}
         <form
           onSubmit={handleSubmit}
           className={`mb-4 p-4 rounded-2xl border transition-all ${editingId ? "bg-indigo-50 border-indigo-200" : "bg-slate-50 border-slate-100"}`}
         >
           <div className="flex justify-between items-center mb-3">
             <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wide">
-              {editingId
-                ? "កំពុងកែប្រែប្រតិបត្តិការ..."
-                : "បញ្ចូលប្រតិបត្តិការថ្មី"}
+              {editingId ? "កំពុងកែប្រែ..." : "បញ្ចូលប្រតិបត្តិការថ្មី"}
             </h3>
             {editingId && (
               <button
@@ -170,15 +198,28 @@ export default function ExpenseTracker() {
               onChange={(e) => setText(e.target.value)}
               className="w-full p-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
             />
+
             <div className="flex gap-2">
-              <input
-                type="number"
-                step="0.01"
-                placeholder="ទឹកប្រាក់ ($)"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                className="w-1/2 p-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
-              />
+              {/* ប្រអប់បញ្ចូលទឹកប្រាក់ និងជ្រើសរើសលុយ $ ឬ ៛ */}
+              <div className="flex w-1/2 bg-white border border-slate-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500 transition-all">
+                <input
+                  type="number"
+                  step="any"
+                  placeholder="ទឹកប្រាក់"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  className="w-full p-3 focus:outline-none"
+                />
+                <select
+                  value={currency}
+                  onChange={(e) => setCurrency(e.target.value)}
+                  className="bg-slate-50 border-l border-slate-200 px-2 font-bold text-slate-700 focus:outline-none cursor-pointer"
+                >
+                  <option value="USD">$</option>
+                  <option value="KHR">៛</option>
+                </select>
+              </div>
+
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
@@ -191,6 +232,7 @@ export default function ExpenseTracker() {
                 <option value="ទិញឥវ៉ាន់">ទិញឥវ៉ាន់</option>
               </select>
             </div>
+
             <select
               value={type}
               onChange={(e) => setType(e.target.value)}
@@ -199,6 +241,7 @@ export default function ExpenseTracker() {
               <option value="expense">📉 ចំណាយ (Expense)</option>
               <option value="income">📈 ចំណូល (Income)</option>
             </select>
+
             <button
               type="submit"
               className={`w-full text-white font-bold p-3 rounded-xl active:scale-[0.98] transition-all shadow-md ${editingId ? "bg-emerald-500 hover:bg-emerald-600" : "bg-indigo-600 hover:bg-indigo-700"}`}
@@ -219,7 +262,7 @@ export default function ExpenseTracker() {
             : "មើលប្រវត្តិប្រតិបត្តិការ 🔽"}
         </button>
 
-        {/* ផ្ទាំងប្រវត្តិ (បង្ហាញតែពេល showHistory ជា true ប៉ុណ្ណោះ) */}
+        {/* ផ្ទាំងប្រវត្តិ */}
         {showHistory && (
           <div className="mt-4 transition-all duration-300">
             <div className="flex justify-between items-end mb-4">
@@ -261,10 +304,14 @@ export default function ExpenseTracker() {
                     </div>
 
                     <div className="flex items-center gap-2">
+                      {/* បង្ហាញលុយរៀល ឬ ដុល្លារ តាមអ្វីដែលអ្នកប្រើប្រាស់បានបញ្ចូល */}
                       <span
                         className={`font-black text-lg mr-2 ${t.type === "income" ? "text-green-500" : "text-red-500"}`}
                       >
-                        {t.type === "income" ? "+" : "-"}${t.amount.toFixed(2)}
+                        {t.type === "income" ? "+" : "-"}
+                        {t.currency === "KHR"
+                          ? `${(t.originalAmount || 0).toLocaleString("km-KH")} ៛`
+                          : `$${(t.amount || 0).toFixed(2)}`}
                       </span>
 
                       <button
