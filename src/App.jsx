@@ -105,7 +105,7 @@ export default function ExpenseTracker() {
     <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4 font-sans">
       <div className="bg-white p-6 rounded-3xl shadow-xl w-full max-w-lg">
         <h1 className="text-3xl font-extrabold text-center text-slate-800 mb-6 tracking-tight">
-          បញ្ជីចំណូលចំណាយ (Expense Tracker) 2026
+          បញ្ជីចំណូលចំណាយ
         </h1>
 
         {/* ផ្ទាំងបង្ហាញសមតុល្យ */}
