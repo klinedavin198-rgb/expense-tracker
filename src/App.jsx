@@ -10,6 +10,15 @@ import {
   orderBy,
 } from "firebase/firestore";
 import { db } from "./firebase";
+// ទាញយកមុខងារ Chart ពីបណ្ណាល័យ recharts ដែលយើងទើបដំឡើង
+import {
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from "recharts";
 
 export default function ExpenseTracker() {
   const [transactions, setTransactions] = useState([]);
@@ -18,14 +27,24 @@ export default function ExpenseTracker() {
   const [type, setType] = useState("expense");
   const [category, setCategory] = useState("ទូទៅ");
 
-  // បន្ថែម State ថ្មីសម្រាប់គ្រប់គ្រង រូបិយប័ណ្ណ
   const [currency, setCurrency] = useState("USD");
-
   const [editingId, setEditingId] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
 
-  // កំណត់អត្រាប្តូរប្រាក់ ១ ដុល្លារ = ៤០០០ រៀល
+  // State ថ្មីសម្រាប់ Tab ចន្លោះពេល (ខែនេះ, ឆ្នាំនេះ, ទាំងអស់)
+  const [timeframe, setTimeframe] = useState("month"); // default មើល "ខែនេះ"
+
   const EXCHANGE_RATE = 4000;
+
+  // ពណ៌សម្រាប់ Pie Chart តាមប្រភេទចំណាយ
+  const COLORS = [
+    "#ef4444",
+    "#f97316",
+    "#f59e0b",
+    "#10b981",
+    "#3b82f6",
+    "#8b5cf6",
+  ];
 
   useEffect(() => {
     const q = query(
@@ -48,7 +67,6 @@ export default function ExpenseTracker() {
       return alert("សូមបញ្ជូលការពិពណ៌នា និងចំនួនទឹកប្រាក់!");
 
     const numAmount = parseFloat(amount);
-    // បំប្លែងទៅជាដុល្លារជានិច្ច មុននឹងរក្សាទុក ដើម្បីងាយស្រួលបូកដកសមតុល្យ
     const finalAmountUSD =
       currency === "KHR" ? numAmount / EXCHANGE_RATE : numAmount;
 
@@ -67,16 +85,15 @@ export default function ExpenseTracker() {
       } else {
         await addDoc(collection(db, "transactions"), {
           text: text,
-          amount: finalAmountUSD, // ទុកសម្រាប់គណនា
-          originalAmount: numAmount, // ទុកសម្រាប់បង្ហាញក្នុងប្រវត្តិ
-          currency: currency, // ចំណាំថាលុយអ្វី
+          amount: finalAmountUSD,
+          originalAmount: numAmount,
+          currency: currency,
           type: type,
           category: category,
           date: new Date().toLocaleDateString("km-KH"),
           createdAt: new Date(),
         });
       }
-
       setText("");
       setAmount("");
     } catch (error) {
@@ -89,7 +106,6 @@ export default function ExpenseTracker() {
 
   const handleEdit = (transaction) => {
     setText(transaction.text);
-    // ទាញយកលុយដើម និងប្រភេទលុយមកបង្ហាញវិញ
     setAmount(
       transaction.originalAmount
         ? transaction.originalAmount.toString()
@@ -110,16 +126,50 @@ export default function ExpenseTracker() {
     }
   };
 
-  // ការគណនាសមតុល្យ (គិតជាដុល្លារទាំងអស់)
-  const totalIncome = transactions
+  // --- ការច្រោះទិន្នន័យ (Filter) ទៅតាម Tab ពេលវេលាដែលបានរើស ---
+  const currentDate = new Date();
+
+  const filteredTransactions = transactions.filter((t) => {
+    if (timeframe === "all") return true;
+
+    // បំប្លែង Timestamp របស់ Firebase ទៅជា Date ធម្មតាដើម្បីងាយស្រួលប្រៀបធៀប
+    const tDate = t.createdAt?.toDate
+      ? t.createdAt.toDate()
+      : new Date(t.createdAt);
+
+    if (timeframe === "month") {
+      return (
+        tDate.getMonth() === currentDate.getMonth() &&
+        tDate.getFullYear() === currentDate.getFullYear()
+      );
+    }
+    if (timeframe === "year") {
+      return tDate.getFullYear() === currentDate.getFullYear();
+    }
+    return true;
+  });
+
+  // --- ការគណនាសមតុល្យ (ផ្អែកលើទិន្នន័យដែលបានច្រោះរួច) ---
+  const totalIncome = filteredTransactions
     .filter((t) => t.type === "income")
     .reduce((acc, curr) => acc + curr.amount, 0);
-
-  const totalExpense = transactions
+  const totalExpense = filteredTransactions
     .filter((t) => t.type === "expense")
     .reduce((acc, curr) => acc + curr.amount, 0);
-
   const balance = totalIncome - totalExpense;
+
+  // --- រៀបចំទិន្នន័យសម្រាប់ Pie Chart (យកតែការចំណាយ) ---
+  const expensesByCategory = filteredTransactions
+    .filter((t) => t.type === "expense")
+    .reduce((acc, curr) => {
+      acc[curr.category] = (acc[curr.category] || 0) + curr.amount;
+      return acc;
+    }, {});
+
+  const pieData = Object.keys(expensesByCategory).map((key) => ({
+    name: key,
+    value: expensesByCategory[key],
+  }));
 
   return (
     <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4 font-sans">
@@ -128,10 +178,36 @@ export default function ExpenseTracker() {
           បញ្ជីចំណូលចំណាយ
         </h1>
 
-        {/* ផ្ទាំងបង្ហាញសមតុល្យ ជា ២ រូបិយប័ណ្ណ */}
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-6 rounded-2xl mb-8 shadow-md">
+        {/* របារជម្រើសពេលវេលា (Tabs) */}
+        <div className="flex bg-slate-100 p-1.5 rounded-xl mb-6 shadow-inner">
+          <button
+            onClick={() => setTimeframe("month")}
+            className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${timeframe === "month" ? "bg-white shadow-md text-indigo-600" : "text-slate-500 hover:text-slate-700"}`}
+          >
+            ខែនេះ
+          </button>
+          <button
+            onClick={() => setTimeframe("year")}
+            className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${timeframe === "year" ? "bg-white shadow-md text-indigo-600" : "text-slate-500 hover:text-slate-700"}`}
+          >
+            ឆ្នាំនេះ
+          </button>
+          <button
+            onClick={() => setTimeframe("all")}
+            className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${timeframe === "all" ? "bg-white shadow-md text-indigo-600" : "text-slate-500 hover:text-slate-700"}`}
+          >
+            សរុបទាំងអស់
+          </button>
+        </div>
+
+        {/* ផ្ទាំងបង្ហាញសមតុល្យ */}
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-6 rounded-2xl mb-6 shadow-md">
           <p className="text-sm font-medium opacity-90 text-center">
-            សមតុល្យសរុបបច្ចុប្បន្ន
+            {timeframe === "month"
+              ? "សមតុល្យខែនេះ"
+              : timeframe === "year"
+                ? "សមតុល្យឆ្នាំនេះ"
+                : "សមតុល្យសរុប"}
           </p>
           <div className="text-center my-2">
             <h2 className="text-4xl font-black">${balance.toFixed(2)}</h2>
@@ -143,30 +219,60 @@ export default function ExpenseTracker() {
           <div className="flex justify-between mt-6 bg-white/10 p-3 rounded-xl backdrop-blur-sm">
             <div className="text-center w-1/2 border-r border-white/20">
               <p className="text-xs font-semibold opacity-80 uppercase tracking-wider">
-                ចំណូលសរុប
+                ចំណូល
               </p>
               <p className="font-bold text-green-400 text-lg">
                 +${totalIncome.toFixed(2)}
               </p>
-              <p className="text-xs font-medium text-green-200">
-                {(totalIncome * EXCHANGE_RATE).toLocaleString("km-KH")} ៛
-              </p>
             </div>
             <div className="text-center w-1/2">
               <p className="text-xs font-semibold opacity-80 uppercase tracking-wider">
-                ចំណាយសរុប
+                ចំណាយ
               </p>
               <p className="font-bold text-red-400 text-lg">
                 -${totalExpense.toFixed(2)}
-              </p>
-              <p className="text-xs font-medium text-red-200">
-                {(totalExpense * EXCHANGE_RATE).toLocaleString("km-KH")} ៛
               </p>
             </div>
           </div>
         </div>
 
-        {/* ហ្វមបញ្ចូលទិន្នន័យ */}
+        {/* ក្រាប Pie Chart បង្ហាញការចំណាយ */}
+        {pieData.length > 0 && (
+          <div className="mb-6 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+            <h3 className="text-center text-sm font-bold text-slate-600 mb-2">
+              ក្រាបចំណាយតាមប្រភេទ
+            </h3>
+            <div className="h-48">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={pieData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={45}
+                    outerRadius={70}
+                    paddingAngle={3}
+                    dataKey="value"
+                  >
+                    {pieData.map((entry, index) => (
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={COLORS[index % COLORS.length]}
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(value) => `$${value.toFixed(2)}`} />
+                  <Legend
+                    iconType="circle"
+                    wrapperStyle={{ fontSize: "12px" }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
+
+        {/* ហ្វមបញ្ចូលទិន្នន័យ (រក្សាដដែល) */}
         <form
           onSubmit={handleSubmit}
           className={`mb-4 p-4 rounded-2xl border transition-all ${editingId ? "bg-indigo-50 border-indigo-200" : "bg-slate-50 border-slate-100"}`}
@@ -189,19 +295,16 @@ export default function ExpenseTracker() {
               </button>
             )}
           </div>
-
           <div className="space-y-3">
             <input
               type="text"
-              placeholder="ការពិពណ៌នា (ឧ. ញ៉ាំកាហ្វេ, បើកប្រាក់ខែ...)"
+              placeholder="ការពិពណ៌នា..."
               value={text}
               onChange={(e) => setText(e.target.value)}
-              className="w-full p-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+              className="w-full p-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
-
             <div className="flex gap-2">
-              {/* ប្រអប់បញ្ចូលទឹកប្រាក់ និងជ្រើសរើសលុយ $ ឬ ៛ */}
-              <div className="flex w-1/2 bg-white border border-slate-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500 transition-all">
+              <div className="flex w-1/2 bg-white border border-slate-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500">
                 <input
                   type="number"
                   step="any"
@@ -219,11 +322,10 @@ export default function ExpenseTracker() {
                   <option value="KHR">៛</option>
                 </select>
               </div>
-
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-                className="w-1/2 p-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all cursor-pointer"
+                className="w-1/2 p-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
               >
                 <option value="ទូទៅ">ទូទៅ</option>
                 <option value="ម្ហូបអាហារ">ម្ហូបអាហារ</option>
@@ -232,26 +334,24 @@ export default function ExpenseTracker() {
                 <option value="ទិញឥវ៉ាន់">ទិញឥវ៉ាន់</option>
               </select>
             </div>
-
             <select
               value={type}
               onChange={(e) => setType(e.target.value)}
-              className="w-full p-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all cursor-pointer font-medium"
+              className="w-full p-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium cursor-pointer"
             >
               <option value="expense">📉 ចំណាយ (Expense)</option>
               <option value="income">📈 ចំណូល (Income)</option>
             </select>
-
             <button
               type="submit"
-              className={`w-full text-white font-bold p-3 rounded-xl active:scale-[0.98] transition-all shadow-md ${editingId ? "bg-emerald-500 hover:bg-emerald-600" : "bg-indigo-600 hover:bg-indigo-700"}`}
+              className={`w-full text-white font-bold p-3 rounded-xl transition-all shadow-md ${editingId ? "bg-emerald-500 hover:bg-emerald-600" : "bg-indigo-600 hover:bg-indigo-700"}`}
             >
               {editingId ? "រក្សាទុកការកែប្រែ" : "បញ្ចូលទិន្នន័យ"}
             </button>
           </div>
         </form>
 
-        {/* ប៊ូតុងសម្រាប់ បង្ហាញ/លាក់ ប្រវត្តិ */}
+        {/* ផ្ទាំងប្រវត្តិ */}
         <button
           type="button"
           onClick={() => setShowHistory(!showHistory)}
@@ -262,7 +362,6 @@ export default function ExpenseTracker() {
             : "មើលប្រវត្តិប្រតិបត្តិការ 🔽"}
         </button>
 
-        {/* ផ្ទាំងប្រវត្តិ */}
         {showHistory && (
           <div className="mt-4 transition-all duration-300">
             <div className="flex justify-between items-end mb-4">
@@ -270,27 +369,25 @@ export default function ExpenseTracker() {
                 ប្រវត្តិប្រតិបត្តិការ
               </h3>
               <span className="text-xs font-semibold bg-slate-200 text-slate-600 py-1 px-2 rounded-lg">
-                {transactions.length} ធាតុ
+                {filteredTransactions.length} ធាតុ
               </span>
             </div>
-
             <ul className="space-y-3 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
-              {transactions.length === 0 ? (
+              {filteredTransactions.length === 0 ? (
                 <div className="text-center py-8 bg-slate-50 rounded-xl border border-dashed border-slate-300">
                   <p className="text-slate-500 text-sm">
-                    កំពុងផ្ទុកទិន្នន័យ ឬមិនទាន់មានប្រវត្តិ...
+                    មិនមានប្រវត្តិប្រតិបត្តិការក្នុងចន្លោះពេលនេះទេ...
                   </p>
                 </div>
               ) : (
-                transactions.map((t) => (
+                filteredTransactions.map((t) => (
                   <li
                     key={t.id}
-                    className={`group flex justify-between items-center p-4 rounded-xl border shadow-sm hover:shadow-md transition-all relative overflow-hidden ${editingId === t.id ? "bg-indigo-50 border-indigo-200" : "bg-white border-slate-100"}`}
+                    className="group flex justify-between items-center p-4 rounded-xl border shadow-sm hover:shadow-md transition-all relative overflow-hidden bg-white border-slate-100"
                   >
                     <div
                       className={`absolute left-0 top-0 bottom-0 w-1.5 ${t.type === "income" ? "bg-green-500" : "bg-red-500"}`}
                     ></div>
-
                     <div className="flex flex-col pl-3">
                       <span className="text-slate-800 font-bold text-md">
                         {t.text}
@@ -302,9 +399,7 @@ export default function ExpenseTracker() {
                         </span>
                       </span>
                     </div>
-
                     <div className="flex items-center gap-2">
-                      {/* បង្ហាញលុយរៀល ឬ ដុល្លារ តាមអ្វីដែលអ្នកប្រើប្រាស់បានបញ្ចូល */}
                       <span
                         className={`font-black text-lg mr-2 ${t.type === "income" ? "text-green-500" : "text-red-500"}`}
                       >
@@ -313,19 +408,15 @@ export default function ExpenseTracker() {
                           ? `${(t.originalAmount || 0).toLocaleString("km-KH")} ៛`
                           : `$${(t.amount || 0).toFixed(2)}`}
                       </span>
-
                       <button
                         onClick={() => handleEdit(t)}
-                        className="text-blue-400 hover:text-blue-600 bg-blue-50 hover:bg-blue-100 p-2 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-                        title="កែប្រែ"
+                        className="text-blue-400 hover:text-blue-600 bg-blue-50 hover:bg-blue-100 p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
                       >
                         ✏️
                       </button>
-
                       <button
                         onClick={() => deleteTransaction(t.id)}
-                        className="text-red-400 hover:text-red-600 bg-red-50 hover:bg-red-100 p-2 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-                        title="លុបចោល"
+                        className="text-red-400 hover:text-red-600 bg-red-50 hover:bg-red-100 p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
                       >
                         ❌
                       </button>
@@ -340,4 +431,3 @@ export default function ExpenseTracker() {
     </div>
   );
 }
-//update
