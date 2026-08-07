@@ -40,6 +40,7 @@ export default function ExpenseTracker() {
   });
 
   const EXCHANGE_RATE = 4000;
+  // បន្ថែមពណ៌ថ្មីៗសម្រាប់ Pie Chart ដើម្បីឱ្យសមនឹងចំនួន Category ដែលកើនឡើង
   const COLORS = [
     "#ef4444",
     "#f97316",
@@ -47,6 +48,10 @@ export default function ExpenseTracker() {
     "#10b981",
     "#3b82f6",
     "#8b5cf6",
+    "#ec4899",
+    "#14b8a6",
+    "#06b6d4",
+    "#6366f1",
   ];
 
   useEffect(() => {
@@ -137,7 +142,6 @@ export default function ExpenseTracker() {
     setShowHistory(true);
   };
 
-  // បន្ថែម Alert Message មុនពេលលុប
   const deleteTransaction = async (id) => {
     const isConfirm = window.confirm(
       "តើអ្នកពិតជាចង់លុបទិន្នន័យនេះមែនទេ? (សកម្មភាពនេះមិនអាចទាញមកវិញបានទេ)",
@@ -362,6 +366,8 @@ export default function ExpenseTracker() {
                   <option value="KHR">៛</option>
                 </select>
               </div>
+
+              {/* កន្លែងអាប់ដេត Category ថ្មី */}
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
@@ -372,6 +378,10 @@ export default function ExpenseTracker() {
                 <option value="ធ្វើដំណើរ">ធ្វើដំណើរ</option>
                 <option value="ប្រាក់ខែ">ប្រាក់ខែ</option>
                 <option value="ទិញឥវ៉ាន់">ទិញឥវ៉ាន់</option>
+                <option value="ថ្នាំពេទ្យនិងសុខភាព">ថ្នាំពេទ្យនិងសុខភាព</option>
+                <option value="សម្រស់">សម្រស់</option>
+                <option value="ការសិក្សា">ការសិក្សា</option>
+                <option value="កូន">កូន</option>
               </select>
             </div>
 
@@ -452,7 +462,6 @@ export default function ExpenseTracker() {
                       </span>
                     </div>
 
-                    {/* កន្លែងបង្ហាញទឹកប្រាក់ ២ រូបិយប័ណ្ណ និងប៊ូតុង */}
                     <div className="flex items-center gap-3">
                       <div className="flex flex-col items-end">
                         <span
