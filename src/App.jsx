@@ -26,11 +26,9 @@ export default function ExpenseTracker() {
   const [type, setType] = useState("expense");
   const [category, setCategory] = useState("ទូទៅ");
 
-  // State ថ្មីសម្រាប់ជ្រើសរើសថ្ងៃខែពេលបញ្ចូលទិន្នន័យ (លំនាំដើមគឺថ្ងៃនេះ)
   const [dateInput, setDateInput] = useState(
     new Date().toISOString().split("T")[0],
   );
-
   const [currency, setCurrency] = useState("USD");
   const [editingId, setEditingId] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
@@ -75,7 +73,6 @@ export default function ExpenseTracker() {
     const finalAmountUSD =
       currency === "KHR" ? numAmount / EXCHANGE_RATE : numAmount;
 
-    // បង្កើតកាលបរិច្ឆេទថ្មីផ្អែកលើថ្ងៃខែដែលអ្នកប្រើប្រាស់បានជ្រើសរើស
     const txDate = new Date(dateInput);
 
     try {
@@ -88,8 +85,8 @@ export default function ExpenseTracker() {
           currency: currency,
           type: type,
           category: category,
-          date: txDate.toLocaleDateString("km-KH"), // អាប់ដេតថ្ងៃខែ
-          createdAt: txDate, // អាប់ដេត Timestamp
+          date: txDate.toLocaleDateString("km-KH"),
+          createdAt: txDate,
         });
         setEditingId(null);
       } else {
@@ -100,13 +97,12 @@ export default function ExpenseTracker() {
           currency: currency,
           type: type,
           category: category,
-          date: txDate.toLocaleDateString("km-KH"), // រក្សាទុកថ្ងៃខែតាមការជ្រើសរើស
-          createdAt: txDate, // រក្សាទុក Timestamp តាមការជ្រើសរើស
+          date: txDate.toLocaleDateString("km-KH"),
+          createdAt: txDate,
         });
       }
       setText("");
       setAmount("");
-      // កំណត់ថ្ងៃខែត្រលប់មកថ្ងៃបច្ចុប្បន្នវិញ បន្ទាប់ពីបញ្ចូលរួច
       setDateInput(new Date().toISOString().split("T")[0]);
     } catch (error) {
       console.error("មានបញ្ហាក្នុងការបញ្ជូនទិន្នន័យ: ", error);
@@ -127,7 +123,6 @@ export default function ExpenseTracker() {
     setType(transaction.type);
     setCategory(transaction.category);
 
-    // ទាញយកកាលបរិច្ឆេទចាស់មកបង្ហាញក្នុងប្រអប់ Date Input វិញ
     if (transaction.createdAt) {
       const tDate = transaction.createdAt?.toDate
         ? transaction.createdAt.toDate()
@@ -142,11 +137,19 @@ export default function ExpenseTracker() {
     setShowHistory(true);
   };
 
+  // បន្ថែម Alert Message មុនពេលលុប
   const deleteTransaction = async (id) => {
-    try {
-      await deleteDoc(doc(db, "transactions", id));
-    } catch (error) {
-      console.error("មានបញ្ហាក្នុងការលុបទិន្នន័យ: ", error);
+    const isConfirm = window.confirm(
+      "តើអ្នកពិតជាចង់លុបទិន្នន័យនេះមែនទេ? (សកម្មភាពនេះមិនអាចទាញមកវិញបានទេ)",
+    );
+
+    if (isConfirm) {
+      try {
+        await deleteDoc(doc(db, "transactions", id));
+      } catch (error) {
+        console.error("មានបញ្ហាក្នុងការលុបទិន្នន័យ: ", error);
+        alert("មិនអាចលុបបានទេ សូមព្យាយាមម្តងទៀត។");
+      }
     }
   };
 
@@ -307,7 +310,7 @@ export default function ExpenseTracker() {
           </div>
         )}
 
-        {/* ហ្វមបញ្ចូលទិន្នន័យ (មានបន្ថែមប្រអប់ Date Picker) */}
+        {/* ហ្វមបញ្ចូលទិន្នន័យ */}
         <form
           onSubmit={handleSubmit}
           className={`mb-4 p-4 rounded-2xl border transition-all ${editingId ? "bg-indigo-50 border-indigo-200" : "bg-slate-50 border-slate-100"}`}
@@ -372,7 +375,6 @@ export default function ExpenseTracker() {
               </select>
             </div>
 
-            {/* បន្ថែមជួរថ្មី សម្រាប់ជ្រើសរើស ថ្ងៃខែ និង ប្រភេទ(ចំណូល/ចំណាយ) */}
             <div className="flex gap-2">
               <input
                 type="date"
@@ -437,8 +439,9 @@ export default function ExpenseTracker() {
                     <div
                       className={`absolute left-0 top-0 bottom-0 w-1.5 ${t.type === "income" ? "bg-green-500" : "bg-red-500"}`}
                     ></div>
-                    <div className="flex flex-col pl-3">
-                      <span className="text-slate-800 font-bold text-md">
+
+                    <div className="flex flex-col pl-3 w-1/2">
+                      <span className="text-slate-800 font-bold text-md truncate">
                         {t.text}
                       </span>
                       <span className="text-xs text-slate-500 font-medium mt-0.5">
@@ -448,27 +451,40 @@ export default function ExpenseTracker() {
                         </span>
                       </span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`font-black text-lg mr-2 ${t.type === "income" ? "text-green-500" : "text-red-500"}`}
-                      >
-                        {t.type === "income" ? "+" : "-"}
-                        {t.currency === "KHR"
-                          ? `${(t.originalAmount || 0).toLocaleString("km-KH")} ៛`
-                          : `$${(t.amount || 0).toFixed(2)}`}
-                      </span>
-                      <button
-                        onClick={() => handleEdit(t)}
-                        className="text-blue-400 hover:text-blue-600 bg-blue-50 hover:bg-blue-100 p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
-                      >
-                        ✏️
-                      </button>
-                      <button
-                        onClick={() => deleteTransaction(t.id)}
-                        className="text-red-400 hover:text-red-600 bg-red-50 hover:bg-red-100 p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
-                      >
-                        ❌
-                      </button>
+
+                    {/* កន្លែងបង្ហាញទឹកប្រាក់ ២ រូបិយប័ណ្ណ និងប៊ូតុង */}
+                    <div className="flex items-center gap-3">
+                      <div className="flex flex-col items-end">
+                        <span
+                          className={`font-black text-[17px] leading-tight ${t.type === "income" ? "text-green-500" : "text-red-500"}`}
+                        >
+                          {t.type === "income" ? "+" : "-"}$
+                          {t.amount.toFixed(2)}
+                        </span>
+                        <span
+                          className={`text-[11px] font-bold opacity-75 mt-0.5 ${t.type === "income" ? "text-green-600" : "text-red-600"}`}
+                        >
+                          {t.type === "income" ? "+" : "-"}
+                          {(t.amount * EXCHANGE_RATE).toLocaleString("km-KH")} ៛
+                        </span>
+                      </div>
+
+                      <div className="flex gap-1 border-l pl-2 border-slate-100">
+                        <button
+                          onClick={() => handleEdit(t)}
+                          className="text-blue-400 hover:text-blue-600 bg-blue-50 hover:bg-blue-100 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
+                          title="កែប្រែ"
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          onClick={() => deleteTransaction(t.id)}
+                          className="text-red-400 hover:text-red-600 bg-red-50 hover:bg-red-100 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
+                          title="លុបចោល"
+                        >
+                          ❌
+                        </button>
+                      </div>
                     </div>
                   </li>
                 ))
