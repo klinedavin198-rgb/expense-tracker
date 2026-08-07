@@ -19,9 +19,10 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import * as XLSX from "xlsx";
-// Import កញ្ចប់ថ្មី ប្រើជំនួស html2pdf
 import html2canvas from "html2canvas";
-import jsPDF from "jspdf";
+
+// 🔴 ចំណុចដែលបានកែប្រែ៖ ត្រូវមានសញ្ញា { } សម្រាប់ jsPDF ទើប Vercel ស្គាល់
+import { jsPDF } from "jspdf";
 
 export default function ExpenseTracker() {
   const [transactions, setTransactions] = useState([]);
@@ -184,9 +185,6 @@ export default function ExpenseTracker() {
     value: expensesByCategory[key],
   }));
 
-  // ==========================================
-  // មុខងារ Export ទៅជា Excel
-  // ==========================================
   const exportToExcel = () => {
     if (filteredTransactions.length === 0)
       return alert("មិនមានទិន្នន័យសម្រាប់ Export ទេ!");
@@ -212,9 +210,6 @@ export default function ExpenseTracker() {
     );
   };
 
-  // ==========================================
-  // មុខងារ 1-Click Export ទៅជា PDF (ថ្មី - មានស្ថេរភាពខ្ពស់)
-  // ==========================================
   const exportToPDF = () => {
     if (filteredTransactions.length === 0)
       return alert("មិនមានទិន្នន័យសម្រាប់ Export ទេ!");
@@ -222,7 +217,7 @@ export default function ExpenseTracker() {
     setShowHistory(true);
     setIsExporting(true);
 
-    // រង់ចាំ 800ms ឱ្យ UI រៀបចំខ្លួន និងលាតសន្ធឹងអស់សិន
+    // បានបង្កើនម៉ោងរង់ចាំ (Timeout) បន្តិចទៀត ដើម្បីប្រាកដថា Chart បានគូររួចរាល់ 100%
     setTimeout(() => {
       const element = document.getElementById("pdf-content");
 
@@ -242,11 +237,9 @@ export default function ExpenseTracker() {
           let heightLeft = imgHeight;
           let position = 0;
 
-          // ដាក់រូបភាពចូលទំព័រទី១
           pdf.addImage(imgData, "PNG", 0, position, pdfWidth, imgHeight);
           heightLeft -= pageHeight;
 
-          // មុខងារកាត់ទំព័រដោយស្វ័យប្រវត្តិ បើប្រវត្តិប្រតិបត្តិការវែងជាង ១ ទំព័រ
           while (heightLeft >= 0) {
             position = position - pageHeight;
             pdf.addPage();
@@ -259,21 +252,20 @@ export default function ExpenseTracker() {
               ? `Expense_Report_${selectedMonth}.pdf`
               : `Expense_Report_${timeframe}.pdf`,
           );
-          setIsExporting(false); // ត្រឡប់ UI មកធម្មតាវិញ
+          setIsExporting(false);
         })
         .catch((err) => {
           console.error("PDF Export Error: ", err);
           setIsExporting(false);
           alert("មានបញ្ហាក្នុងការទាញយក PDF សូមសាកល្បងម្ដងទៀត។");
         });
-    }, 800);
+    }, 1200);
   };
 
   return (
     <div
       className={`min-h-screen flex items-center justify-center p-4 font-sans transition-colors ${isExporting ? "bg-white" : "bg-slate-100"}`}
     >
-      {/* Container ដែលនឹងត្រូវថតយក (pdf-content) */}
       <div
         id="pdf-content"
         className={`bg-white p-6 w-full max-w-lg ${isExporting ? "rounded-none shadow-none" : "rounded-3xl shadow-xl"}`}
@@ -282,7 +274,6 @@ export default function ExpenseTracker() {
           បញ្ជីចំណូលចំណាយ
         </h1>
 
-        {/* លាក់របារនេះពេលកំពុងទាញយក PDF */}
         {!isExporting && (
           <>
             <div className="flex bg-slate-100 p-1.5 rounded-xl mb-4 shadow-inner">
@@ -332,7 +323,6 @@ export default function ExpenseTracker() {
           </>
         )}
 
-        {/* ផ្ទាំងបង្ហាញសមតុល្យ */}
         <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-6 rounded-2xl mb-6 shadow-md">
           <p className="text-sm font-medium opacity-90 text-center">
             {timeframe === "month"
@@ -367,7 +357,6 @@ export default function ExpenseTracker() {
           </div>
         </div>
 
-        {/* ក្រាប Pie Chart */}
         {pieData.length > 0 && (
           <div className="mb-6 p-4 bg-slate-50 rounded-2xl border border-slate-100">
             <h3 className="text-center text-sm font-bold text-slate-600 mb-2">
@@ -375,7 +364,6 @@ export default function ExpenseTracker() {
             </h3>
             <div className="h-48">
               <ResponsiveContainer width="100%" height="100%">
-                {/* បិទចលនា (Animation) របស់ PieChart ជាបណ្តោះអាសន្នពេលកំពុង Export ការពារកុំឱ្យគាំង */}
                 <PieChart>
                   <Pie
                     data={pieData}
@@ -405,7 +393,6 @@ export default function ExpenseTracker() {
           </div>
         )}
 
-        {/* ហ្វមបញ្ចូលទិន្នន័យ (លាក់បាត់ពេលកំពុង Export) */}
         {!isExporting && (
           <form
             onSubmit={handleSubmit}
@@ -501,7 +488,6 @@ export default function ExpenseTracker() {
           </form>
         )}
 
-        {/* ផ្ទាំងប្រវត្តិ */}
         {!isExporting && (
           <button
             type="button"
@@ -525,7 +511,6 @@ export default function ExpenseTracker() {
               </span>
             </div>
 
-            {/* ពេល Export យើងត្រូវដកកម្ពស់អតិបរមា (max-h) ចេញ ដើម្បីកុំឱ្យវាចេញ Scrollbar ក្នុង PDF */}
             <ul
               className={`space-y-3 pr-1 ${isExporting ? "" : "max-h-[300px] overflow-y-auto custom-scrollbar"}`}
             >
@@ -562,7 +547,6 @@ export default function ExpenseTracker() {
                         {(t.amount * EXCHANGE_RATE).toLocaleString("km-KH")} ៛
                       </span>
                     </div>
-                    {/* លាក់សញ្ញា កែប្រែ/លុប ពេលកំពុងទាញយក PDF */}
                     {!isExporting && (
                       <div className="flex gap-1 border-l pl-2 border-slate-100">
                         <button
