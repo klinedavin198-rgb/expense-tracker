@@ -19,6 +19,11 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
+// Import libraries សម្រាប់ Export
+import * as XLSX from "xlsx";
+import jsPDF from "jspdf";
+import "jspdf-autotable";
+
 export default function ExpenseTracker() {
   const [transactions, setTransactions] = useState([]);
   const [text, setText] = useState("");
@@ -40,7 +45,6 @@ export default function ExpenseTracker() {
   });
 
   const EXCHANGE_RATE = 4000;
-  // បន្ថែមពណ៌ថ្មីៗសម្រាប់ Pie Chart ដើម្បីឱ្យសមនឹងចំនួន Category ដែលកើនឡើង
   const COLORS = [
     "#ef4444",
     "#f97316",
@@ -77,7 +81,6 @@ export default function ExpenseTracker() {
     const numAmount = parseFloat(amount);
     const finalAmountUSD =
       currency === "KHR" ? numAmount / EXCHANGE_RATE : numAmount;
-
     const txDate = new Date(dateInput);
 
     try {
@@ -146,7 +149,6 @@ export default function ExpenseTracker() {
     const isConfirm = window.confirm(
       "តើអ្នកពិតជាចង់លុបទិន្នន័យនេះមែនទេ? (សកម្មភាពនេះមិនអាចទាញមកវិញបានទេ)",
     );
-
     if (isConfirm) {
       try {
         await deleteDoc(doc(db, "transactions", id));
@@ -201,6 +203,94 @@ export default function ExpenseTracker() {
     value: expensesByCategory[key],
   }));
 
+  // ==========================================
+  // មុខងារ Export ទៅជា Excel
+  // ==========================================
+  const exportToExcel = () => {
+    if (filteredTransactions.length === 0)
+      return alert("មិនមានទិន្នន័យសម្រាប់ Export ទេ!");
+
+    // រៀបចំទិន្នន័យជាជួរឈរ (Columns) សម្រាប់ Excel
+    const dataToExport = filteredTransactions.map((t) => ({
+      "កាលបរិច្ឆេទ (Date)": t.date,
+      "ការពិពណ៌នា (Description)": t.text,
+      "ប្រភេទ (Category)": t.category,
+      "ចំណូល/ចំណាយ (Type)":
+        t.type === "income" ? "ចំណូល (Income)" : "ចំណាយ (Expense)",
+      "ទឹកប្រាក់ $ (USD)": t.type === "income" ? t.amount : -t.amount,
+      "ទឹកប្រាក់ ៛ (KHR)":
+        t.type === "income"
+          ? t.amount * EXCHANGE_RATE
+          : -(t.amount * EXCHANGE_RATE),
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Transactions");
+
+    // បង្កើតឈ្មោះ File ទៅតាមពេលវេលាដែលកំពុងមើល
+    const fileName =
+      timeframe === "month"
+        ? `Expense_Report_${selectedMonth}.xlsx`
+        : `Expense_Report_${timeframe}.xlsx`;
+    XLSX.writeFile(workbook, fileName);
+  };
+
+  // ==========================================
+  // មុខងារ Export ទៅជា PDF
+  // ==========================================
+  const exportToPDF = () => {
+    if (filteredTransactions.length === 0)
+      return alert("មិនមានទិន្នន័យសម្រាប់ Export ទេ!");
+
+    const doc = new jsPDF();
+
+    // ចំណាំ៖ jsPDF ធម្មតាមិនសូវគាំទ្រ Font ខ្មែរទេ ដូច្នេះយើងប្រើភាសាអង់គ្លេសសម្រាប់ PDF ដើម្បីកុំឱ្យធ្លាក់អក្សរ
+    const tableColumn = [
+      "Date",
+      "Description",
+      "Category",
+      "Type",
+      "Amount (USD)",
+      "Amount (KHR)",
+    ];
+    const tableRows = [];
+
+    filteredTransactions.forEach((t) => {
+      const transactionData = [
+        t.date,
+        t.text, // បើអក្សរខ្មែរធ្លាក់ វាអាចលោតចេញជាសញ្ញាសួរ (?) ក្នុង PDF
+        t.category,
+        t.type === "income" ? "Income" : "Expense",
+        t.type === "income"
+          ? `+$${t.amount.toFixed(2)}`
+          : `-$${t.amount.toFixed(2)}`,
+        t.type === "income"
+          ? `+${(t.amount * EXCHANGE_RATE).toLocaleString()} KHR`
+          : `-${(t.amount * EXCHANGE_RATE).toLocaleString()} KHR`,
+      ];
+      tableRows.push(transactionData);
+    });
+
+    const title =
+      timeframe === "month"
+        ? `Expense Report: ${selectedMonth}`
+        : `Expense Report: ${timeframe}`;
+    doc.text(title, 14, 15);
+
+    doc.autoTable({
+      head: [tableColumn],
+      body: tableRows,
+      startY: 20,
+    });
+
+    const fileName =
+      timeframe === "month"
+        ? `Expense_Report_${selectedMonth}.pdf`
+        : `Expense_Report_${timeframe}.pdf`;
+    doc.save(fileName);
+  };
+
   return (
     <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4 font-sans">
       <div className="bg-white p-6 rounded-3xl shadow-xl w-full max-w-lg">
@@ -209,7 +299,7 @@ export default function ExpenseTracker() {
         </h1>
 
         {/* របារជម្រើសពេលវេលា (Tabs) */}
-        <div className="flex bg-slate-100 p-1.5 rounded-xl mb-2 shadow-inner">
+        <div className="flex bg-slate-100 p-1.5 rounded-xl mb-4 shadow-inner">
           <button
             onClick={() => setTimeframe("month")}
             className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${timeframe === "month" ? "bg-white shadow-md text-indigo-600" : "text-slate-500 hover:text-slate-700"}`}
@@ -232,7 +322,7 @@ export default function ExpenseTracker() {
 
         {/* ប្រអប់រើសខែ */}
         {timeframe === "month" && (
-          <div className="flex justify-center mb-6 mt-3 relative">
+          <div className="flex justify-center mb-4 relative">
             <input
               type="month"
               value={selectedMonth}
@@ -241,7 +331,22 @@ export default function ExpenseTracker() {
             />
           </div>
         )}
-        {timeframe !== "month" && <div className="mb-6"></div>}
+
+        {/* ប៊ូតុង Export */}
+        <div className="flex gap-2 mb-6 justify-center">
+          <button
+            onClick={exportToExcel}
+            className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-xl shadow transition-colors text-sm flex items-center justify-center gap-2"
+          >
+            <span>📊</span> Export Excel
+          </button>
+          <button
+            onClick={exportToPDF}
+            className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-xl shadow transition-colors text-sm flex items-center justify-center gap-2"
+          >
+            <span>📄</span> Export PDF
+          </button>
+        </div>
 
         {/* ផ្ទាំងបង្ហាញសមតុល្យ */}
         <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-6 rounded-2xl mb-6 shadow-md">
@@ -366,8 +471,6 @@ export default function ExpenseTracker() {
                   <option value="KHR">៛</option>
                 </select>
               </div>
-
-              {/* កន្លែងអាប់ដេត Category ថ្មី */}
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
