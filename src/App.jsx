@@ -19,7 +19,9 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import * as XLSX from "xlsx";
-import html2pdf from "html2pdf.js"; // ទាញយកបណ្ណាល័យថ្មី
+// Import កញ្ចប់ថ្មី ប្រើជំនួស html2pdf
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
 
 export default function ExpenseTracker() {
   const [transactions, setTransactions] = useState([]);
@@ -35,7 +37,6 @@ export default function ExpenseTracker() {
   const [editingId, setEditingId] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
 
-  // State ថ្មីសម្រាប់លាក់ប៊ូតុងនានា ពេលកំពុងដំណើរការ Export PDF
   const [isExporting, setIsExporting] = useState(false);
 
   const [timeframe, setTimeframe] = useState("month");
@@ -212,49 +213,70 @@ export default function ExpenseTracker() {
   };
 
   // ==========================================
-  // មុខងារ 1-Click Export ទៅជា PDF
+  // មុខងារ 1-Click Export ទៅជា PDF (ថ្មី - មានស្ថេរភាពខ្ពស់)
   // ==========================================
   const exportToPDF = () => {
     if (filteredTransactions.length === 0)
       return alert("មិនមានទិន្នន័យសម្រាប់ Export ទេ!");
 
-    // បង្ហាញបញ្ជីប្រវត្តិ និងលាក់ប៊ូតុងនានា ដើម្បីរៀបចំថតរូបអេក្រង់
     setShowHistory(true);
     setIsExporting(true);
 
-    // រង់ចាំបន្តិចឱ្យ UI ផ្លាស់ប្តូរទម្រង់រួចរាល់ ទើបចាប់ផ្តើមថតជា PDF
+    // រង់ចាំ 800ms ឱ្យ UI រៀបចំខ្លួន និងលាតសន្ធឹងអស់សិន
     setTimeout(() => {
       const element = document.getElementById("pdf-content");
-      const opt = {
-        margin: [0.3, 0.3, 0.3, 0.3], // គែមសងខាង
-        filename:
-          timeframe === "month"
-            ? `Expense_Report_${selectedMonth}.pdf`
-            : `Expense_Report_${timeframe}.pdf`,
-        image: { type: "jpeg", quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true }, // បង្កើនភាពច្បាស់ (Scale)
-        jsPDF: { unit: "in", format: "a4", orientation: "portrait" },
-      };
 
-      // ដំណើរការ Download ភ្លាមៗដោយមិនបាច់មាន Preview
-      html2pdf()
-        .set(opt)
-        .from(element)
-        .save()
-        .then(() => {
-          setIsExporting(false); // បង្ហាញប៊ូតុងបញ្ចូលទិន្នន័យត្រឡប់មកវិញ
+      html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: "#ffffff",
+      })
+        .then((canvas) => {
+          const imgData = canvas.toDataURL("image/png");
+          const pdf = new jsPDF("p", "mm", "a4");
+
+          const pdfWidth = pdf.internal.pageSize.getWidth();
+          const pageHeight = pdf.internal.pageSize.getHeight();
+          const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+
+          let heightLeft = imgHeight;
+          let position = 0;
+
+          // ដាក់រូបភាពចូលទំព័រទី១
+          pdf.addImage(imgData, "PNG", 0, position, pdfWidth, imgHeight);
+          heightLeft -= pageHeight;
+
+          // មុខងារកាត់ទំព័រដោយស្វ័យប្រវត្តិ បើប្រវត្តិប្រតិបត្តិការវែងជាង ១ ទំព័រ
+          while (heightLeft >= 0) {
+            position = position - pageHeight;
+            pdf.addPage();
+            pdf.addImage(imgData, "PNG", 0, position, pdfWidth, imgHeight);
+            heightLeft -= pageHeight;
+          }
+
+          pdf.save(
+            timeframe === "month"
+              ? `Expense_Report_${selectedMonth}.pdf`
+              : `Expense_Report_${timeframe}.pdf`,
+          );
+          setIsExporting(false); // ត្រឡប់ UI មកធម្មតាវិញ
+        })
+        .catch((err) => {
+          console.error("PDF Export Error: ", err);
+          setIsExporting(false);
+          alert("មានបញ្ហាក្នុងការទាញយក PDF សូមសាកល្បងម្ដងទៀត។");
         });
-    }, 500);
+    }, 800);
   };
 
   return (
-    // យើងដាក់ id="pdf-content" នៅទីនេះដើម្បីកំណត់កន្លែងដែលត្រូវថតយក
     <div
-      className={`min-h-screen flex items-center justify-center p-4 font-sans ${isExporting ? "bg-white" : "bg-slate-100"}`}
+      className={`min-h-screen flex items-center justify-center p-4 font-sans transition-colors ${isExporting ? "bg-white" : "bg-slate-100"}`}
     >
+      {/* Container ដែលនឹងត្រូវថតយក (pdf-content) */}
       <div
         id="pdf-content"
-        className="bg-white p-6 rounded-3xl shadow-xl w-full max-w-lg"
+        className={`bg-white p-6 w-full max-w-lg ${isExporting ? "rounded-none shadow-none" : "rounded-3xl shadow-xl"}`}
       >
         <h1 className="text-3xl font-extrabold text-center text-slate-800 mb-6 tracking-tight">
           បញ្ជីចំណូលចំណាយ
@@ -300,7 +322,6 @@ export default function ExpenseTracker() {
               >
                 <span>📊</span> Export Excel
               </button>
-              {/* ប៊ូតុងថ្មីសម្រាប់ Download ភ្លាមៗ (One-Click Download) */}
               <button
                 onClick={exportToPDF}
                 className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-xl shadow transition-colors text-sm flex items-center justify-center gap-2"
@@ -354,6 +375,7 @@ export default function ExpenseTracker() {
             </h3>
             <div className="h-48">
               <ResponsiveContainer width="100%" height="100%">
+                {/* បិទចលនា (Animation) របស់ PieChart ជាបណ្តោះអាសន្នពេលកំពុង Export ការពារកុំឱ្យគាំង */}
                 <PieChart>
                   <Pie
                     data={pieData}
@@ -363,6 +385,7 @@ export default function ExpenseTracker() {
                     outerRadius={70}
                     paddingAngle={3}
                     dataKey="value"
+                    isAnimationActive={!isExporting}
                   >
                     {pieData.map((entry, index) => (
                       <Cell
@@ -415,7 +438,6 @@ export default function ExpenseTracker() {
                 onChange={(e) => setText(e.target.value)}
                 className="w-full p-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
-
               <div className="flex gap-2">
                 <div className="flex w-1/2 bg-white border border-slate-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500">
                   <input
@@ -453,7 +475,6 @@ export default function ExpenseTracker() {
                   <option value="កូន">កូន</option>
                 </select>
               </div>
-
               <div className="flex gap-2">
                 <input
                   type="date"
