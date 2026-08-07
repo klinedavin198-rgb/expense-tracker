@@ -26,16 +26,18 @@ export default function ExpenseTracker() {
   const [type, setType] = useState("expense");
   const [category, setCategory] = useState("ទូទៅ");
 
+  // State ថ្មីសម្រាប់ជ្រើសរើសថ្ងៃខែពេលបញ្ចូលទិន្នន័យ (លំនាំដើមគឺថ្ងៃនេះ)
+  const [dateInput, setDateInput] = useState(
+    new Date().toISOString().split("T")[0],
+  );
+
   const [currency, setCurrency] = useState("USD");
   const [editingId, setEditingId] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
 
   const [timeframe, setTimeframe] = useState("month");
-
-  // State ថ្មីសម្រាប់ផ្ទុក ខែ និងឆ្នាំ ដែលបានជ្រើសរើស (លំនាំដើមគឺខែបច្ចុប្បន្ន)
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const d = new Date();
-    // បង្កើតទម្រង់ "YYYY-MM" (ឧ. "2026-08")
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
   });
 
@@ -73,6 +75,9 @@ export default function ExpenseTracker() {
     const finalAmountUSD =
       currency === "KHR" ? numAmount / EXCHANGE_RATE : numAmount;
 
+    // បង្កើតកាលបរិច្ឆេទថ្មីផ្អែកលើថ្ងៃខែដែលអ្នកប្រើប្រាស់បានជ្រើសរើស
+    const txDate = new Date(dateInput);
+
     try {
       if (editingId) {
         const transactionRef = doc(db, "transactions", editingId);
@@ -83,6 +88,8 @@ export default function ExpenseTracker() {
           currency: currency,
           type: type,
           category: category,
+          date: txDate.toLocaleDateString("km-KH"), // អាប់ដេតថ្ងៃខែ
+          createdAt: txDate, // អាប់ដេត Timestamp
         });
         setEditingId(null);
       } else {
@@ -93,12 +100,14 @@ export default function ExpenseTracker() {
           currency: currency,
           type: type,
           category: category,
-          date: new Date().toLocaleDateString("km-KH"),
-          createdAt: new Date(),
+          date: txDate.toLocaleDateString("km-KH"), // រក្សាទុកថ្ងៃខែតាមការជ្រើសរើស
+          createdAt: txDate, // រក្សាទុក Timestamp តាមការជ្រើសរើស
         });
       }
       setText("");
       setAmount("");
+      // កំណត់ថ្ងៃខែត្រលប់មកថ្ងៃបច្ចុប្បន្នវិញ បន្ទាប់ពីបញ្ចូលរួច
+      setDateInput(new Date().toISOString().split("T")[0]);
     } catch (error) {
       console.error("មានបញ្ហាក្នុងការបញ្ជូនទិន្នន័យ: ", error);
       alert(
@@ -117,6 +126,18 @@ export default function ExpenseTracker() {
     setCurrency(transaction.currency || "USD");
     setType(transaction.type);
     setCategory(transaction.category);
+
+    // ទាញយកកាលបរិច្ឆេទចាស់មកបង្ហាញក្នុងប្រអប់ Date Input វិញ
+    if (transaction.createdAt) {
+      const tDate = transaction.createdAt?.toDate
+        ? transaction.createdAt.toDate()
+        : new Date(transaction.createdAt);
+      const year = tDate.getFullYear();
+      const month = String(tDate.getMonth() + 1).padStart(2, "0");
+      const day = String(tDate.getDate()).padStart(2, "0");
+      setDateInput(`${year}-${month}-${day}`);
+    }
+
     setEditingId(transaction.id);
     setShowHistory(true);
   };
@@ -131,7 +152,6 @@ export default function ExpenseTracker() {
 
   // --- ការច្រោះទិន្នន័យ (Filter) ---
   const currentDate = new Date();
-
   const filteredTransactions = transactions.filter((t) => {
     if (timeframe === "all") return true;
 
@@ -140,9 +160,7 @@ export default function ExpenseTracker() {
       : new Date(t.createdAt);
 
     if (timeframe === "month") {
-      // បំបែក "2026-08" ទៅជាឆ្នាំនិងខែដាច់ដោយឡែក
       const [year, month] = selectedMonth.split("-");
-      // ប្រៀបធៀបជាមួយឆ្នាំនិងខែរបស់ទិន្នន័យ (month - 1 ព្រោះ Date ក្នុង JS រាប់ខែពី 0)
       return (
         tDate.getFullYear() === parseInt(year) &&
         tDate.getMonth() === parseInt(month) - 1
@@ -205,7 +223,7 @@ export default function ExpenseTracker() {
           </button>
         </div>
 
-        {/* ប្រអប់រើសខែ (លេចចេញតែពេលជ្រើសរើស Tab "ប្រចាំខែ" ប៉ុណ្ណោះ) */}
+        {/* ប្រអប់រើសខែ */}
         {timeframe === "month" && (
           <div className="flex justify-center mb-6 mt-3 relative">
             <input
@@ -216,8 +234,6 @@ export default function ExpenseTracker() {
             />
           </div>
         )}
-
-        {/* បង្កើតគម្លាតបន្តិចបើមិនបានរើស Tab ខែ */}
         {timeframe !== "month" && <div className="mb-6"></div>}
 
         {/* ផ្ទាំងបង្ហាញសមតុល្យ */}
@@ -235,7 +251,6 @@ export default function ExpenseTracker() {
               ≈ {(balance * EXCHANGE_RATE).toLocaleString("km-KH")} ៛
             </p>
           </div>
-
           <div className="flex justify-between mt-6 bg-white/10 p-3 rounded-xl backdrop-blur-sm">
             <div className="text-center w-1/2 border-r border-white/20">
               <p className="text-xs font-semibold opacity-80 uppercase tracking-wider">
@@ -292,7 +307,7 @@ export default function ExpenseTracker() {
           </div>
         )}
 
-        {/* ហ្វមបញ្ចូលទិន្នន័យ */}
+        {/* ហ្វមបញ្ចូលទិន្នន័យ (មានបន្ថែមប្រអប់ Date Picker) */}
         <form
           onSubmit={handleSubmit}
           className={`mb-4 p-4 rounded-2xl border transition-all ${editingId ? "bg-indigo-50 border-indigo-200" : "bg-slate-50 border-slate-100"}`}
@@ -308,6 +323,7 @@ export default function ExpenseTracker() {
                   setEditingId(null);
                   setText("");
                   setAmount("");
+                  setDateInput(new Date().toISOString().split("T")[0]);
                 }}
                 className="text-xs font-bold text-slate-500 hover:text-slate-700 bg-slate-200 px-2 py-1 rounded"
               >
@@ -323,6 +339,7 @@ export default function ExpenseTracker() {
               onChange={(e) => setText(e.target.value)}
               className="w-full p-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
+
             <div className="flex gap-2">
               <div className="flex w-1/2 bg-white border border-slate-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500">
                 <input
@@ -354,14 +371,26 @@ export default function ExpenseTracker() {
                 <option value="ទិញឥវ៉ាន់">ទិញឥវ៉ាន់</option>
               </select>
             </div>
-            <select
-              value={type}
-              onChange={(e) => setType(e.target.value)}
-              className="w-full p-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium cursor-pointer"
-            >
-              <option value="expense">📉 ចំណាយ (Expense)</option>
-              <option value="income">📈 ចំណូល (Income)</option>
-            </select>
+
+            {/* បន្ថែមជួរថ្មី សម្រាប់ជ្រើសរើស ថ្ងៃខែ និង ប្រភេទ(ចំណូល/ចំណាយ) */}
+            <div className="flex gap-2">
+              <input
+                type="date"
+                value={dateInput}
+                onChange={(e) => setDateInput(e.target.value)}
+                className="w-1/2 p-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-slate-700 cursor-pointer"
+                title="ជ្រើសរើសថ្ងៃខែ"
+              />
+              <select
+                value={type}
+                onChange={(e) => setType(e.target.value)}
+                className="w-1/2 p-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium cursor-pointer"
+              >
+                <option value="expense">📉 ចំណាយ (Expense)</option>
+                <option value="income">📈 ចំណូល (Income)</option>
+              </select>
+            </div>
+
             <button
               type="submit"
               className={`w-full text-white font-bold p-3 rounded-xl transition-all shadow-md ${editingId ? "bg-emerald-500 hover:bg-emerald-600" : "bg-indigo-600 hover:bg-indigo-700"}`}
