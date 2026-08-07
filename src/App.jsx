@@ -10,7 +10,6 @@ import {
   orderBy,
 } from "firebase/firestore";
 import { db } from "./firebase";
-// ទាញយកមុខងារ Chart ពីបណ្ណាល័យ recharts ដែលយើងទើបដំឡើង
 import {
   PieChart,
   Pie,
@@ -31,12 +30,16 @@ export default function ExpenseTracker() {
   const [editingId, setEditingId] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
 
-  // State ថ្មីសម្រាប់ Tab ចន្លោះពេល (ខែនេះ, ឆ្នាំនេះ, ទាំងអស់)
-  const [timeframe, setTimeframe] = useState("month"); // default មើល "ខែនេះ"
+  const [timeframe, setTimeframe] = useState("month");
+
+  // State ថ្មីសម្រាប់ផ្ទុក ខែ និងឆ្នាំ ដែលបានជ្រើសរើស (លំនាំដើមគឺខែបច្ចុប្បន្ន)
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const d = new Date();
+    // បង្កើតទម្រង់ "YYYY-MM" (ឧ. "2026-08")
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  });
 
   const EXCHANGE_RATE = 4000;
-
-  // ពណ៌សម្រាប់ Pie Chart តាមប្រភេទចំណាយ
   const COLORS = [
     "#ef4444",
     "#f97316",
@@ -126,21 +129,23 @@ export default function ExpenseTracker() {
     }
   };
 
-  // --- ការច្រោះទិន្នន័យ (Filter) ទៅតាម Tab ពេលវេលាដែលបានរើស ---
+  // --- ការច្រោះទិន្នន័យ (Filter) ---
   const currentDate = new Date();
 
   const filteredTransactions = transactions.filter((t) => {
     if (timeframe === "all") return true;
 
-    // បំប្លែង Timestamp របស់ Firebase ទៅជា Date ធម្មតាដើម្បីងាយស្រួលប្រៀបធៀប
     const tDate = t.createdAt?.toDate
       ? t.createdAt.toDate()
       : new Date(t.createdAt);
 
     if (timeframe === "month") {
+      // បំបែក "2026-08" ទៅជាឆ្នាំនិងខែដាច់ដោយឡែក
+      const [year, month] = selectedMonth.split("-");
+      // ប្រៀបធៀបជាមួយឆ្នាំនិងខែរបស់ទិន្នន័យ (month - 1 ព្រោះ Date ក្នុង JS រាប់ខែពី 0)
       return (
-        tDate.getMonth() === currentDate.getMonth() &&
-        tDate.getFullYear() === currentDate.getFullYear()
+        tDate.getFullYear() === parseInt(year) &&
+        tDate.getMonth() === parseInt(month) - 1
       );
     }
     if (timeframe === "year") {
@@ -149,7 +154,7 @@ export default function ExpenseTracker() {
     return true;
   });
 
-  // --- ការគណនាសមតុល្យ (ផ្អែកលើទិន្នន័យដែលបានច្រោះរួច) ---
+  // --- ការគណនាសមតុល្យ ---
   const totalIncome = filteredTransactions
     .filter((t) => t.type === "income")
     .reduce((acc, curr) => acc + curr.amount, 0);
@@ -158,7 +163,7 @@ export default function ExpenseTracker() {
     .reduce((acc, curr) => acc + curr.amount, 0);
   const balance = totalIncome - totalExpense;
 
-  // --- រៀបចំទិន្នន័យសម្រាប់ Pie Chart (យកតែការចំណាយ) ---
+  // --- រៀបចំទិន្នន័យសម្រាប់ Pie Chart ---
   const expensesByCategory = filteredTransactions
     .filter((t) => t.type === "expense")
     .reduce((acc, curr) => {
@@ -179,12 +184,12 @@ export default function ExpenseTracker() {
         </h1>
 
         {/* របារជម្រើសពេលវេលា (Tabs) */}
-        <div className="flex bg-slate-100 p-1.5 rounded-xl mb-6 shadow-inner">
+        <div className="flex bg-slate-100 p-1.5 rounded-xl mb-2 shadow-inner">
           <button
             onClick={() => setTimeframe("month")}
             className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${timeframe === "month" ? "bg-white shadow-md text-indigo-600" : "text-slate-500 hover:text-slate-700"}`}
           >
-            ខែនេះ
+            ប្រចាំខែ
           </button>
           <button
             onClick={() => setTimeframe("year")}
@@ -200,11 +205,26 @@ export default function ExpenseTracker() {
           </button>
         </div>
 
+        {/* ប្រអប់រើសខែ (លេចចេញតែពេលជ្រើសរើស Tab "ប្រចាំខែ" ប៉ុណ្ណោះ) */}
+        {timeframe === "month" && (
+          <div className="flex justify-center mb-6 mt-3 relative">
+            <input
+              type="month"
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="bg-white border-2 border-indigo-100 text-indigo-700 font-bold px-4 py-2 rounded-xl focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all cursor-pointer shadow-sm hover:shadow"
+            />
+          </div>
+        )}
+
+        {/* បង្កើតគម្លាតបន្តិចបើមិនបានរើស Tab ខែ */}
+        {timeframe !== "month" && <div className="mb-6"></div>}
+
         {/* ផ្ទាំងបង្ហាញសមតុល្យ */}
         <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-6 rounded-2xl mb-6 shadow-md">
           <p className="text-sm font-medium opacity-90 text-center">
             {timeframe === "month"
-              ? "សមតុល្យខែនេះ"
+              ? "សមតុល្យប្រចាំខែ"
               : timeframe === "year"
                 ? "សមតុល្យឆ្នាំនេះ"
                 : "សមតុល្យសរុប"}
@@ -236,7 +256,7 @@ export default function ExpenseTracker() {
           </div>
         </div>
 
-        {/* ក្រាប Pie Chart បង្ហាញការចំណាយ */}
+        {/* ក្រាប Pie Chart */}
         {pieData.length > 0 && (
           <div className="mb-6 p-4 bg-slate-50 rounded-2xl border border-slate-100">
             <h3 className="text-center text-sm font-bold text-slate-600 mb-2">
@@ -272,7 +292,7 @@ export default function ExpenseTracker() {
           </div>
         )}
 
-        {/* ហ្វមបញ្ចូលទិន្នន័យ (រក្សាដដែល) */}
+        {/* ហ្វមបញ្ចូលទិន្នន័យ */}
         <form
           onSubmit={handleSubmit}
           className={`mb-4 p-4 rounded-2xl border transition-all ${editingId ? "bg-indigo-50 border-indigo-200" : "bg-slate-50 border-slate-100"}`}
