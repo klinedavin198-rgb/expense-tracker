@@ -18,11 +18,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-
-// Import libraries សម្រាប់ Export
 import * as XLSX from "xlsx";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
 
 export default function ExpenseTracker() {
   const [transactions, setTransactions] = useState([]);
@@ -146,28 +142,22 @@ export default function ExpenseTracker() {
   };
 
   const deleteTransaction = async (id) => {
-    const isConfirm = window.confirm(
-      "តើអ្នកពិតជាចង់លុបទិន្នន័យនេះមែនទេ? (សកម្មភាពនេះមិនអាចទាញមកវិញបានទេ)",
-    );
+    const isConfirm = window.confirm("តើអ្នកពិតជាចង់លុបទិន្នន័យនេះមែនទេ?");
     if (isConfirm) {
       try {
         await deleteDoc(doc(db, "transactions", id));
       } catch (error) {
         console.error("មានបញ្ហាក្នុងការលុបទិន្នន័យ: ", error);
-        alert("មិនអាចលុបបានទេ សូមព្យាយាមម្តងទៀត។");
       }
     }
   };
 
-  // --- ការច្រោះទិន្នន័យ (Filter) ---
   const currentDate = new Date();
   const filteredTransactions = transactions.filter((t) => {
     if (timeframe === "all") return true;
-
     const tDate = t.createdAt?.toDate
       ? t.createdAt.toDate()
       : new Date(t.createdAt);
-
     if (timeframe === "month") {
       const [year, month] = selectedMonth.split("-");
       return (
@@ -181,7 +171,6 @@ export default function ExpenseTracker() {
     return true;
   });
 
-  // --- ការគណនាសមតុល្យ ---
   const totalIncome = filteredTransactions
     .filter((t) => t.type === "income")
     .reduce((acc, curr) => acc + curr.amount, 0);
@@ -190,7 +179,6 @@ export default function ExpenseTracker() {
     .reduce((acc, curr) => acc + curr.amount, 0);
   const balance = totalIncome - totalExpense;
 
-  // --- រៀបចំទិន្នន័យសម្រាប់ Pie Chart ---
   const expensesByCategory = filteredTransactions
     .filter((t) => t.type === "expense")
     .reduce((acc, curr) => {
@@ -203,14 +191,10 @@ export default function ExpenseTracker() {
     value: expensesByCategory[key],
   }));
 
-  // ==========================================
-  // មុខងារ Export ទៅជា Excel
-  // ==========================================
+  // មុខងារ Export ទៅជា Excel (រក្សាដដែល ព្រោះ Excel គាំទ្រអក្សរខ្មែរបានល្អ)
   const exportToExcel = () => {
     if (filteredTransactions.length === 0)
       return alert("មិនមានទិន្នន័យសម្រាប់ Export ទេ!");
-
-    // រៀបចំទិន្នន័យជាជួរឈរ (Columns) សម្រាប់ Excel
     const dataToExport = filteredTransactions.map((t) => ({
       "កាលបរិច្ឆេទ (Date)": t.date,
       "ការពិពណ៌នា (Description)": t.text,
@@ -223,12 +207,9 @@ export default function ExpenseTracker() {
           ? t.amount * EXCHANGE_RATE
           : -(t.amount * EXCHANGE_RATE),
     }));
-
     const worksheet = XLSX.utils.json_to_sheet(dataToExport);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Transactions");
-
-    // បង្កើតឈ្មោះ File ទៅតាមពេលវេលាដែលកំពុងមើល
     const fileName =
       timeframe === "month"
         ? `Expense_Report_${selectedMonth}.xlsx`
@@ -236,70 +217,16 @@ export default function ExpenseTracker() {
     XLSX.writeFile(workbook, fileName);
   };
 
-  // ==========================================
-  // មុខងារ Export ទៅជា PDF (បានកែសម្រួលថ្មី)
-  // ==========================================
-  const exportToPDF = () => {
-    if (filteredTransactions.length === 0)
-      return alert("មិនមានទិន្នន័យសម្រាប់ Export ទេ!");
-
-    const doc = new jsPDF();
-
-    const tableColumn = [
-      "Date",
-      "Description",
-      "Category",
-      "Type",
-      "Amount (USD)",
-      "Amount (KHR)",
-    ];
-    const tableRows = [];
-
-    filteredTransactions.forEach((t) => {
-      const transactionData = [
-        t.date,
-        t.text,
-        t.category,
-        t.type === "income" ? "Income" : "Expense",
-        t.type === "income"
-          ? `+$${t.amount.toFixed(2)}`
-          : `-$${t.amount.toFixed(2)}`,
-        t.type === "income"
-          ? `+${(t.amount * EXCHANGE_RATE).toLocaleString()} KHR`
-          : `-${(t.amount * EXCHANGE_RATE).toLocaleString()} KHR`,
-      ];
-      tableRows.push(transactionData);
-    });
-
-    const title =
-      timeframe === "month"
-        ? `Expense Report: ${selectedMonth}`
-        : `Expense Report: ${timeframe}`;
-    doc.text(title, 14, 15);
-
-    // ប្រើទម្រង់ autoTable(doc, { ... }) វិញទើបដំណើរការលើ Vite
-    autoTable(doc, {
-      head: [tableColumn],
-      body: tableRows,
-      startY: 20,
-    });
-
-    const fileName =
-      timeframe === "month"
-        ? `Expense_Report_${selectedMonth}.pdf`
-        : `Expense_Report_${timeframe}.pdf`;
-    doc.save(fileName);
-  };
-
   return (
-    <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4 font-sans">
-      <div className="bg-white p-6 rounded-3xl shadow-xl w-full max-w-lg">
-        <h1 className="text-3xl font-extrabold text-center text-slate-800 mb-6 tracking-tight">
+    <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4 font-sans print:bg-white print:p-0">
+      {/* ផ្ទាំងដើម ដែលនឹងត្រូវបានលាក់ពេល Print (print:hidden លើផ្នែកខ្លះ) */}
+      <div className="bg-white p-6 rounded-3xl shadow-xl w-full max-w-lg print:shadow-none print:w-full print:max-w-none print:p-0">
+        <h1 className="text-3xl font-extrabold text-center text-slate-800 mb-6 tracking-tight print:hidden">
           បញ្ជីចំណូលចំណាយ
         </h1>
 
-        {/* របារជម្រើសពេលវេលា (Tabs) */}
-        <div className="flex bg-slate-100 p-1.5 rounded-xl mb-4 shadow-inner">
+        {/* របារជម្រើសពេលវេលា */}
+        <div className="flex bg-slate-100 p-1.5 rounded-xl mb-4 shadow-inner print:hidden">
           <button
             onClick={() => setTimeframe("month")}
             className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${timeframe === "month" ? "bg-white shadow-md text-indigo-600" : "text-slate-500 hover:text-slate-700"}`}
@@ -322,37 +249,38 @@ export default function ExpenseTracker() {
 
         {/* ប្រអប់រើសខែ */}
         {timeframe === "month" && (
-          <div className="flex justify-center mb-4 relative">
+          <div className="flex justify-center mb-4 relative print:hidden">
             <input
               type="month"
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
-              className="bg-white border-2 border-indigo-100 text-indigo-700 font-bold px-4 py-2 rounded-xl focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all cursor-pointer shadow-sm hover:shadow"
+              className="bg-white border-2 border-indigo-100 text-indigo-700 font-bold px-4 py-2 rounded-xl focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all cursor-pointer shadow-sm"
             />
           </div>
         )}
 
-        {/* ប៊ូតុង Export */}
-        <div className="flex gap-2 mb-6 justify-center">
+        {/* ប៊ូតុង Export & Print */}
+        <div className="flex gap-2 mb-6 justify-center print:hidden">
           <button
             onClick={exportToExcel}
             className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-xl shadow transition-colors text-sm flex items-center justify-center gap-2"
           >
             <span>📊</span> Export Excel
           </button>
+          {/* ប្តូរពី jsPDF មកប្រើមុខងារ Print របស់ Browser វិញ */}
           <button
-            onClick={exportToPDF}
+            onClick={() => window.print()}
             className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-xl shadow transition-colors text-sm flex items-center justify-center gap-2"
           >
-            <span>📄</span> Export PDF
+            <span>📄</span> Save as PDF / Print
           </button>
         </div>
 
-        {/* ផ្ទាំងបង្ហាញសមតុល្យ */}
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-6 rounded-2xl mb-6 shadow-md">
+        {/* ផ្ទាំងបង្ហាញសមតុល្យ (បង្ហាញទាំងលើអេក្រង់ និងក្នុង PDF) */}
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-6 rounded-2xl mb-6 shadow-md print:shadow-none print:break-inside-avoid">
           <p className="text-sm font-medium opacity-90 text-center">
             {timeframe === "month"
-              ? "សមតុល្យប្រចាំខែ"
+              ? `សមតុល្យប្រចាំខែ ${selectedMonth}`
               : timeframe === "year"
                 ? "សមតុល្យឆ្នាំនេះ"
                 : "សមតុល្យសរុប"}
@@ -383,9 +311,9 @@ export default function ExpenseTracker() {
           </div>
         </div>
 
-        {/* ក្រាប Pie Chart */}
+        {/* ក្រាប Pie Chart (បង្ហាញទាំងលើអេក្រង់ និងក្នុង PDF) */}
         {pieData.length > 0 && (
-          <div className="mb-6 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+          <div className="mb-6 p-4 bg-slate-50 rounded-2xl border border-slate-100 print:break-inside-avoid">
             <h3 className="text-center text-sm font-bold text-slate-600 mb-2">
               ក្រាបចំណាយតាមប្រភេទ
             </h3>
@@ -419,11 +347,12 @@ export default function ExpenseTracker() {
           </div>
         )}
 
-        {/* ហ្វមបញ្ចូលទិន្នន័យ */}
+        {/* ហ្វមបញ្ចូលទិន្នន័យ (លាក់ពេល Print) */}
         <form
           onSubmit={handleSubmit}
-          className={`mb-4 p-4 rounded-2xl border transition-all ${editingId ? "bg-indigo-50 border-indigo-200" : "bg-slate-50 border-slate-100"}`}
+          className={`mb-4 p-4 rounded-2xl border transition-all print:hidden ${editingId ? "bg-indigo-50 border-indigo-200" : "bg-slate-50 border-slate-100"}`}
         >
+          {/* ... កូដ Form នៅរក្សាដដែលគ្រាន់តែបន្ថែម print:hidden ... */}
           <div className="flex justify-between items-center mb-3">
             <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wide">
               {editingId ? "កំពុងកែប្រែ..." : "បញ្ចូលប្រតិបត្តិការថ្មី"}
@@ -494,7 +423,6 @@ export default function ExpenseTracker() {
                 value={dateInput}
                 onChange={(e) => setDateInput(e.target.value)}
                 className="w-1/2 p-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-slate-700 cursor-pointer"
-                title="ជ្រើសរើសថ្ងៃខែ"
               />
               <select
                 value={type}
@@ -505,7 +433,6 @@ export default function ExpenseTracker() {
                 <option value="income">📈 ចំណូល (Income)</option>
               </select>
             </div>
-
             <button
               type="submit"
               className={`w-full text-white font-bold p-3 rounded-xl transition-all shadow-md ${editingId ? "bg-emerald-500 hover:bg-emerald-600" : "bg-indigo-600 hover:bg-indigo-700"}`}
@@ -515,11 +442,11 @@ export default function ExpenseTracker() {
           </div>
         </form>
 
-        {/* ផ្ទាំងប្រវត្តិ */}
+        {/* ផ្ទាំងប្រវត្តិ (លើអេក្រង់) លាក់ពេល Print */}
         <button
           type="button"
           onClick={() => setShowHistory(!showHistory)}
-          className="w-full text-indigo-600 bg-indigo-50 hover:bg-indigo-100 py-3 rounded-xl font-bold transition-all flex justify-center items-center gap-2 mb-2"
+          className="w-full text-indigo-600 bg-indigo-50 hover:bg-indigo-100 py-3 rounded-xl font-bold transition-all flex justify-center items-center gap-2 mb-2 print:hidden"
         >
           {showHistory
             ? "លាក់ប្រវត្តិប្រតិបត្តិការ 🔼"
@@ -527,7 +454,7 @@ export default function ExpenseTracker() {
         </button>
 
         {showHistory && (
-          <div className="mt-4 transition-all duration-300">
+          <div className="mt-4 transition-all duration-300 print:hidden">
             <div className="flex justify-between items-end mb-4">
               <h3 className="text-lg font-bold text-slate-800">
                 ប្រវត្តិប្រតិបត្តិការ
@@ -537,73 +464,101 @@ export default function ExpenseTracker() {
               </span>
             </div>
             <ul className="space-y-3 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
-              {filteredTransactions.length === 0 ? (
-                <div className="text-center py-8 bg-slate-50 rounded-xl border border-dashed border-slate-300">
-                  <p className="text-slate-500 text-sm">
-                    មិនមានប្រវត្តិប្រតិបត្តិការក្នុងចន្លោះពេលនេះទេ...
-                  </p>
-                </div>
-              ) : (
-                filteredTransactions.map((t) => (
-                  <li
-                    key={t.id}
-                    className="group flex justify-between items-center p-4 rounded-xl border shadow-sm hover:shadow-md transition-all relative overflow-hidden bg-white border-slate-100"
-                  >
-                    <div
-                      className={`absolute left-0 top-0 bottom-0 w-1.5 ${t.type === "income" ? "bg-green-500" : "bg-red-500"}`}
-                    ></div>
-
-                    <div className="flex flex-col pl-3 w-1/2">
-                      <span className="text-slate-800 font-bold text-md truncate">
-                        {t.text}
+              {filteredTransactions.map((t) => (
+                <li
+                  key={t.id}
+                  className="group flex justify-between items-center p-4 rounded-xl border shadow-sm hover:shadow-md transition-all relative overflow-hidden bg-white border-slate-100"
+                >
+                  <div
+                    className={`absolute left-0 top-0 bottom-0 w-1.5 ${t.type === "income" ? "bg-green-500" : "bg-red-500"}`}
+                  ></div>
+                  <div className="flex flex-col pl-3 w-1/2">
+                    <span className="text-slate-800 font-bold text-md truncate">
+                      {t.text}
+                    </span>
+                    <span className="text-xs text-slate-500 font-medium mt-0.5">
+                      {t.date} •{" "}
+                      <span className="bg-slate-100 px-2 py-0.5 rounded text-slate-600">
+                        {t.category}
                       </span>
-                      <span className="text-xs text-slate-500 font-medium mt-0.5">
-                        {t.date} •{" "}
-                        <span className="bg-slate-100 px-2 py-0.5 rounded text-slate-600">
-                          {t.category}
-                        </span>
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex flex-col items-end">
+                      <span
+                        className={`font-black text-[17px] leading-tight ${t.type === "income" ? "text-green-500" : "text-red-500"}`}
+                      >
+                        {t.type === "income" ? "+" : "-"}${t.amount.toFixed(2)}
+                      </span>
+                      <span
+                        className={`text-[11px] font-bold opacity-75 mt-0.5 ${t.type === "income" ? "text-green-600" : "text-red-600"}`}
+                      >
+                        {t.type === "income" ? "+" : "-"}
+                        {(t.amount * EXCHANGE_RATE).toLocaleString("km-KH")} ៛
                       </span>
                     </div>
-
-                    <div className="flex items-center gap-3">
-                      <div className="flex flex-col items-end">
-                        <span
-                          className={`font-black text-[17px] leading-tight ${t.type === "income" ? "text-green-500" : "text-red-500"}`}
-                        >
-                          {t.type === "income" ? "+" : "-"}$
-                          {t.amount.toFixed(2)}
-                        </span>
-                        <span
-                          className={`text-[11px] font-bold opacity-75 mt-0.5 ${t.type === "income" ? "text-green-600" : "text-red-600"}`}
-                        >
-                          {t.type === "income" ? "+" : "-"}
-                          {(t.amount * EXCHANGE_RATE).toLocaleString("km-KH")} ៛
-                        </span>
-                      </div>
-
-                      <div className="flex gap-1 border-l pl-2 border-slate-100">
-                        <button
-                          onClick={() => handleEdit(t)}
-                          className="text-blue-400 hover:text-blue-600 bg-blue-50 hover:bg-blue-100 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
-                          title="កែប្រែ"
-                        >
-                          ✏️
-                        </button>
-                        <button
-                          onClick={() => deleteTransaction(t.id)}
-                          className="text-red-400 hover:text-red-600 bg-red-50 hover:bg-red-100 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
-                          title="លុបចោល"
-                        >
-                          ❌
-                        </button>
-                      </div>
+                    <div className="flex gap-1 border-l pl-2 border-slate-100">
+                      <button
+                        onClick={() => handleEdit(t)}
+                        className="text-blue-400 hover:text-blue-600 bg-blue-50 hover:bg-blue-100 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        onClick={() => deleteTransaction(t.id)}
+                        className="text-red-400 hover:text-red-600 bg-red-50 hover:bg-red-100 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
+                      >
+                        ❌
+                      </button>
                     </div>
-                  </li>
-                ))
-              )}
+                  </div>
+                </li>
+              ))}
             </ul>
           </div>
         )}
+
+        {/* តារាងពិសេសសម្រាប់តែបង្ហាញក្នុង PDF (លាក់នៅលើអេក្រង់) */}
+        <div className="hidden print:block mt-8">
+          <h3 className="text-xl font-bold text-slate-800 mb-4 border-b pb-2">
+            តារាងប្រតិបត្តិការលម្អិត
+          </h3>
+          <table className="w-full text-left border-collapse text-sm">
+            <thead>
+              <tr className="bg-slate-100 text-slate-700">
+                <th className="border p-2">កាលបរិច្ឆេទ</th>
+                <th className="border p-2">ការពិពណ៌នា</th>
+                <th className="border p-2">ប្រភេទ</th>
+                <th className="border p-2 text-right">ទឹកប្រាក់ (USD)</th>
+                <th className="border p-2 text-right">ទឹកប្រាក់ (KHR)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredTransactions.map((t) => (
+                <tr key={t.id} className="border-b">
+                  <td className="border p-2">{t.date}</td>
+                  <td className="border p-2 font-medium">{t.text}</td>
+                  <td className="border p-2">
+                    <span className="bg-slate-100 px-2 py-1 rounded text-xs">
+                      {t.category}
+                    </span>
+                  </td>
+                  <td
+                    className={`border p-2 text-right font-bold ${t.type === "income" ? "text-green-600" : "text-red-600"}`}
+                  >
+                    {t.type === "income" ? "+" : "-"}${t.amount.toFixed(2)}
+                  </td>
+                  <td
+                    className={`border p-2 text-right font-bold ${t.type === "income" ? "text-green-600" : "text-red-600"}`}
+                  >
+                    {t.type === "income" ? "+" : "-"}
+                    {(t.amount * EXCHANGE_RATE).toLocaleString("km-KH")} ៛
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
