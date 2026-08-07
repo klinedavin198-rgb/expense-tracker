@@ -22,7 +22,7 @@ import {
 // Import libraries សម្រាប់ Export
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
-import "jspdf-autotable";
+import autoTable from "jspdf-autotable";
 
 export default function ExpenseTracker() {
   const [transactions, setTransactions] = useState([]);
@@ -237,7 +237,7 @@ export default function ExpenseTracker() {
   };
 
   // ==========================================
-  // មុខងារ Export ទៅជា PDF
+  // មុខងារ Export ទៅជា PDF (បានកែសម្រួលថ្មី)
   // ==========================================
   const exportToPDF = () => {
     if (filteredTransactions.length === 0)
@@ -245,7 +245,6 @@ export default function ExpenseTracker() {
 
     const doc = new jsPDF();
 
-    // ចំណាំ៖ jsPDF ធម្មតាមិនសូវគាំទ្រ Font ខ្មែរទេ ដូច្នេះយើងប្រើភាសាអង់គ្លេសសម្រាប់ PDF ដើម្បីកុំឱ្យធ្លាក់អក្សរ
     const tableColumn = [
       "Date",
       "Description",
@@ -259,7 +258,7 @@ export default function ExpenseTracker() {
     filteredTransactions.forEach((t) => {
       const transactionData = [
         t.date,
-        t.text, // បើអក្សរខ្មែរធ្លាក់ វាអាចលោតចេញជាសញ្ញាសួរ (?) ក្នុង PDF
+        t.text,
         t.category,
         t.type === "income" ? "Income" : "Expense",
         t.type === "income"
@@ -278,7 +277,8 @@ export default function ExpenseTracker() {
         : `Expense Report: ${timeframe}`;
     doc.text(title, 14, 15);
 
-    doc.autoTable({
+    // ប្រើទម្រង់ autoTable(doc, { ... }) វិញទើបដំណើរការលើ Vite
+    autoTable(doc, {
       head: [tableColumn],
       body: tableRows,
       startY: 20,
