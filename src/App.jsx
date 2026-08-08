@@ -40,14 +40,13 @@ export default function ExpenseTracker() {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
   });
 
-  // --- State ថ្មីសម្រាប់ផ្ទុកថ្ងៃចាប់ផ្តើម និងថ្ងៃបញ្ចប់ (សម្រាប់ Tab "ចន្លោះថ្ងៃ") ---
   const [startDate, setStartDate] = useState(() => {
     const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`; // លំនាំដើម៖ ថ្ងៃទី១ នៃខែបច្ចុប្បន្ន
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
   });
   const [endDate, setEndDate] = useState(() => {
     const d = new Date();
-    return d.toISOString().split("T")[0]; // លំនាំដើម៖ ថ្ងៃនេះ
+    return d.toISOString().split("T")[0];
   });
 
   const EXCHANGE_RATE = 4000;
@@ -162,7 +161,6 @@ export default function ExpenseTracker() {
     }
   };
 
-  // --- អាប់ដេតមុខងារច្រោះទិន្នន័យ (Filter) សម្រាប់ជម្រើសចន្លោះថ្ងៃ ---
   const currentDate = new Date();
   const filteredTransactions = transactions.filter((t) => {
     if (timeframe === "all") return true;
@@ -184,13 +182,10 @@ export default function ExpenseTracker() {
     }
 
     if (timeframe === "custom") {
-      // កំណត់ម៉ោងចាប់ផ្តើម និងបញ្ចប់ ដើម្បីឱ្យការច្រោះទិន្នន័យបានត្រឹមត្រូវពេញមួយថ្ងៃ
       const start = new Date(startDate);
       start.setHours(0, 0, 0, 0);
-
       const end = new Date(endDate);
       end.setHours(23, 59, 59, 999);
-
       return tDate >= start && tDate <= end;
     }
 
@@ -236,7 +231,6 @@ export default function ExpenseTracker() {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Transactions");
 
-    // បង្កើតឈ្មោះ File ទៅតាមជម្រើសពេលវេលា
     let fileName = `Expense_Report_${timeframe}.xlsx`;
     if (timeframe === "month")
       fileName = `Expense_Report_${selectedMonth}.xlsx`;
@@ -246,7 +240,6 @@ export default function ExpenseTracker() {
     XLSX.writeFile(workbook, fileName);
   };
 
-  // មុខងារកំណត់ចំណងជើងផ្ទាំងសមតុល្យឱ្យត្រូវនឹងជម្រើស
   const getBalanceTitle = () => {
     if (timeframe === "month") return `សមតុល្យប្រចាំខែ ${selectedMonth}`;
     if (timeframe === "year") return "សមតុល្យឆ្នាំនេះ";
@@ -255,6 +248,13 @@ export default function ExpenseTracker() {
     return "សមតុល្យសរុប";
   };
 
+  // ======================================================================
+  // ថ្មី៖ ទាញយកបញ្ជីឈ្មោះការពិពណ៌នា ដែលមិនជាន់គ្នា (Unique Descriptions)
+  // ======================================================================
+  const uniqueDescriptions = Array.from(
+    new Set(transactions.map((t) => t.text)),
+  ).filter(Boolean);
+
   return (
     <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4 font-sans print:bg-white print:p-0">
       <div className="bg-white p-6 rounded-3xl shadow-xl w-full max-w-3xl print:shadow-none print:w-full print:max-w-none print:p-0">
@@ -262,7 +262,6 @@ export default function ExpenseTracker() {
           បញ្ជីចំណូលចំណាយ
         </h1>
 
-        {/* របារជម្រើសពេលវេលា (បន្ថែមជម្រើស ចន្លោះថ្ងៃ) */}
         <div className="flex flex-wrap bg-slate-100 p-1.5 rounded-xl mb-4 shadow-inner print:hidden max-w-lg mx-auto">
           <button
             onClick={() => setTimeframe("month")}
@@ -290,7 +289,6 @@ export default function ExpenseTracker() {
           </button>
         </div>
 
-        {/* ប្រអប់រើស ខែ (បង្ហាញតែពេលរើស ប្រចាំខែ) */}
         {timeframe === "month" && (
           <div className="flex justify-center mb-4 relative print:hidden">
             <input
@@ -302,7 +300,6 @@ export default function ExpenseTracker() {
           </div>
         )}
 
-        {/* ប្រអប់រើស ចន្លោះថ្ងៃ (បង្ហាញតែពេលរើស ចន្លោះថ្ងៃ) */}
         {timeframe === "custom" && (
           <div className="flex justify-center items-center gap-2 mb-4 relative print:hidden max-w-lg mx-auto">
             <input
@@ -338,7 +335,6 @@ export default function ExpenseTracker() {
           </button>
         </div>
 
-        {/* ផ្ទាំង សមតុល្យ និង ក្រាប ទន្ទឹមគ្នា */}
         <div className="flex flex-col md:flex-row print:flex-row gap-4 mb-6 print:mb-4">
           <div
             className={`bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-6 rounded-2xl shadow-md print:shadow-none print:break-inside-avoid flex flex-col justify-center ${pieData.length > 0 ? "w-full md:w-1/2 print:w-1/2" : "w-full"}`}
@@ -432,13 +428,26 @@ export default function ExpenseTracker() {
             )}
           </div>
           <div className="space-y-3">
-            <input
-              type="text"
-              placeholder="ការពិពណ៌នា..."
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              className="w-full p-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
+            {/* ============================================================== */}
+            {/* ផ្នែកដែលបានកែប្រែ៖ បន្ថែម list attribute និង datalist សម្រាប់ Suggestion */}
+            {/* ============================================================== */}
+            <div className="relative">
+              <input
+                type="text"
+                list="desc-suggestions"
+                placeholder="ការពិពណ៌នា..."
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                className="w-full p-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                autoComplete="off"
+              />
+              {/* បង្កើតបញ្ជីពាក្យដែលធ្លាប់បានវាយបញ្ចូល */}
+              <datalist id="desc-suggestions">
+                {uniqueDescriptions.map((desc, idx) => (
+                  <option key={idx} value={desc} />
+                ))}
+              </datalist>
+            </div>
 
             <div className="flex gap-2">
               <div className="flex w-1/2 bg-white border border-slate-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500">
