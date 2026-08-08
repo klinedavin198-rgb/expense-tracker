@@ -34,9 +34,10 @@ export default function ExpenseTracker() {
   const [editingId, setEditingId] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
 
-  // ប្តូរលំនាំដើមទៅជា 'custom' (ចន្លោះថ្ងៃ) ដើម្បីឱ្យវា Active មុនគេពេលបើកកម្មវិធី
-  const [timeframe, setTimeframe] = useState("custom");
+  // State ថ្មីសម្រាប់គ្រប់គ្រងពាក្យដែលត្រូវស្វែងរក (Search Query)
+  const [searchQuery, setSearchQuery] = useState("");
 
+  const [timeframe, setTimeframe] = useState("custom");
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -163,6 +164,7 @@ export default function ExpenseTracker() {
     }
   };
 
+  // ការច្រោះទិន្នន័យតាមពេលវេលា (រក្សាដដែល)
   const currentDate = new Date();
   const filteredTransactions = transactions.filter((t) => {
     const tDate = t.createdAt?.toDate
@@ -192,6 +194,13 @@ export default function ExpenseTracker() {
     return true;
   });
 
+  // បន្ថែមការច្រោះទិន្នន័យតាមប្រអប់ Search
+  const searchedTransactions = filteredTransactions.filter(
+    (t) =>
+      t.text.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      t.category.toLowerCase().includes(searchQuery.toLowerCase()), // អាច Search តាមប្រភេទ Category ផងដែរ
+  );
+
   const totalIncome = filteredTransactions
     .filter((t) => t.type === "income")
     .reduce((acc, curr) => acc + curr.amount, 0);
@@ -213,9 +222,10 @@ export default function ExpenseTracker() {
   }));
 
   const exportToExcel = () => {
-    if (filteredTransactions.length === 0)
+    // ប្រើ searchedTransactions ដើម្បីពេល Export ទៅជា Excel បានតែទិន្នន័យដែលយើង Search រកឃើញ
+    if (searchedTransactions.length === 0)
       return alert("មិនមានទិន្នន័យសម្រាប់ Export ទេ!");
-    const dataToExport = filteredTransactions.map((t) => ({
+    const dataToExport = searchedTransactions.map((t) => ({
       "កាលបរិច្ឆេទ (Date)": t.date,
       "ការពិពណ៌នា (Description)": t.text,
       "ប្រភេទ (Category)": t.category,
@@ -260,7 +270,6 @@ export default function ExpenseTracker() {
           បញ្ជីចំណូលចំណាយ
         </h1>
 
-        {/* របារជម្រើសពេលវេលាថ្មី (ដក "សរុបទាំងអស់" និងដាក់ "ចន្លោះថ្ងៃ" មុនគេ) */}
         <div className="flex flex-wrap bg-slate-100 p-1.5 rounded-xl mb-4 shadow-inner print:hidden max-w-lg mx-auto">
           <button
             onClick={() => setTimeframe("custom")}
@@ -512,23 +521,40 @@ export default function ExpenseTracker() {
 
           {showHistory && (
             <div className="mt-4 transition-all duration-300 print:hidden">
-              <div className="flex justify-between items-end mb-4">
+              <div className="flex justify-between items-end mb-3">
                 <h3 className="text-lg font-bold text-slate-800">
                   ប្រវត្តិប្រតិបត្តិការ
                 </h3>
                 <span className="text-xs font-semibold bg-slate-200 text-slate-600 py-1 px-2 rounded-lg">
-                  {filteredTransactions.length} ធាតុ
+                  {searchedTransactions.length} ធាតុ
                 </span>
               </div>
+
+              {/* ========================================================= */}
+              {/* ផ្នែកថ្មី៖ ប្រអប់ Search ដែលបង្ហាញនៅពេលបើកមើលប្រវត្តិ */}
+              {/* ========================================================= */}
+              <div className="mb-4 relative">
+                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+                  🔍
+                </span>
+                <input
+                  type="text"
+                  placeholder="ស្វែងរកតាមឈ្មោះ ឬប្រភេទ..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 p-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all text-sm shadow-sm"
+                />
+              </div>
+
               <ul className="space-y-3 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
-                {filteredTransactions.length === 0 ? (
+                {searchedTransactions.length === 0 ? (
                   <div className="text-center py-8 bg-slate-50 rounded-xl border border-dashed border-slate-300">
                     <p className="text-slate-500 text-sm">
-                      មិនមានទិន្នន័យក្នុងចន្លោះពេលនេះទេ...
+                      មិនមានទិន្នន័យត្រូវគ្នានឹងការស្វែងរកទេ...
                     </p>
                   </div>
                 ) : (
-                  filteredTransactions.map((t) => (
+                  searchedTransactions.map((t) => (
                     <li
                       key={t.id}
                       className="group flex justify-between items-center p-4 rounded-xl border shadow-sm hover:shadow-md transition-all relative overflow-hidden bg-white border-slate-100"
@@ -603,7 +629,8 @@ export default function ExpenseTracker() {
               </tr>
             </thead>
             <tbody>
-              {filteredTransactions.map((t) => (
+              {/* ប្រើ searchedTransactions ក្នុងតារាង Print ដូចគ្នា ដើម្បីបានទិន្នន័យដូចដែលបាន Search */}
+              {searchedTransactions.map((t) => (
                 <tr key={t.id} className="border-b">
                   <td className="border p-2">{t.date}</td>
                   <td className="border p-2 font-medium">{t.text}</td>
