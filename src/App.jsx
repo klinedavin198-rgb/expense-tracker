@@ -34,7 +34,9 @@ export default function ExpenseTracker() {
   const [editingId, setEditingId] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
 
-  const [timeframe, setTimeframe] = useState("month");
+  // ប្តូរលំនាំដើមទៅជា 'custom' (ចន្លោះថ្ងៃ) ដើម្បីឱ្យវា Active មុនគេពេលបើកកម្មវិធី
+  const [timeframe, setTimeframe] = useState("custom");
+
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -163,11 +165,17 @@ export default function ExpenseTracker() {
 
   const currentDate = new Date();
   const filteredTransactions = transactions.filter((t) => {
-    if (timeframe === "all") return true;
-
     const tDate = t.createdAt?.toDate
       ? t.createdAt.toDate()
       : new Date(t.createdAt);
+
+    if (timeframe === "custom") {
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      return tDate >= start && tDate <= end;
+    }
 
     if (timeframe === "month") {
       const [year, month] = selectedMonth.split("-");
@@ -179,14 +187,6 @@ export default function ExpenseTracker() {
 
     if (timeframe === "year") {
       return tDate.getFullYear() === currentDate.getFullYear();
-    }
-
-    if (timeframe === "custom") {
-      const start = new Date(startDate);
-      start.setHours(0, 0, 0, 0);
-      const end = new Date(endDate);
-      end.setHours(23, 59, 59, 999);
-      return tDate >= start && tDate <= end;
     }
 
     return true;
@@ -232,25 +232,23 @@ export default function ExpenseTracker() {
     XLSX.utils.book_append_sheet(workbook, worksheet, "Transactions");
 
     let fileName = `Expense_Report_${timeframe}.xlsx`;
-    if (timeframe === "month")
-      fileName = `Expense_Report_${selectedMonth}.xlsx`;
     if (timeframe === "custom")
       fileName = `Expense_Report_${startDate}_to_${endDate}.xlsx`;
+    if (timeframe === "month")
+      fileName = `Expense_Report_${selectedMonth}.xlsx`;
+    if (timeframe === "year") fileName = `Expense_Report_Year.xlsx`;
 
     XLSX.writeFile(workbook, fileName);
   };
 
   const getBalanceTitle = () => {
-    if (timeframe === "month") return `សមតុល្យប្រចាំខែ ${selectedMonth}`;
-    if (timeframe === "year") return "សមតុល្យឆ្នាំនេះ";
     if (timeframe === "custom")
       return `សមតុល្យពីថ្ងៃ ${startDate} ដល់ ${endDate}`;
-    return "សមតុល្យសរុប";
+    if (timeframe === "month") return `សមតុល្យប្រចាំខែ ${selectedMonth}`;
+    if (timeframe === "year") return "សមតុល្យឆ្នាំនេះ";
+    return "សមតុល្យ";
   };
 
-  // ======================================================================
-  // ថ្មី៖ ទាញយកបញ្ជីឈ្មោះការពិពណ៌នា ដែលមិនជាន់គ្នា (Unique Descriptions)
-  // ======================================================================
   const uniqueDescriptions = Array.from(
     new Set(transactions.map((t) => t.text)),
   ).filter(Boolean);
@@ -262,7 +260,14 @@ export default function ExpenseTracker() {
           បញ្ជីចំណូលចំណាយ
         </h1>
 
+        {/* របារជម្រើសពេលវេលាថ្មី (ដក "សរុបទាំងអស់" និងដាក់ "ចន្លោះថ្ងៃ" មុនគេ) */}
         <div className="flex flex-wrap bg-slate-100 p-1.5 rounded-xl mb-4 shadow-inner print:hidden max-w-lg mx-auto">
+          <button
+            onClick={() => setTimeframe("custom")}
+            className={`flex-1 min-w-[80px] py-2 text-sm font-bold rounded-lg transition-all ${timeframe === "custom" ? "bg-white shadow-md text-indigo-600" : "text-slate-500 hover:text-slate-700"}`}
+          >
+            ចន្លោះថ្ងៃ
+          </button>
           <button
             onClick={() => setTimeframe("month")}
             className={`flex-1 min-w-[80px] py-2 text-sm font-bold rounded-lg transition-all ${timeframe === "month" ? "bg-white shadow-md text-indigo-600" : "text-slate-500 hover:text-slate-700"}`}
@@ -275,30 +280,7 @@ export default function ExpenseTracker() {
           >
             ឆ្នាំនេះ
           </button>
-          <button
-            onClick={() => setTimeframe("all")}
-            className={`flex-1 min-w-[80px] py-2 text-sm font-bold rounded-lg transition-all ${timeframe === "all" ? "bg-white shadow-md text-indigo-600" : "text-slate-500 hover:text-slate-700"}`}
-          >
-            សរុបទាំងអស់
-          </button>
-          <button
-            onClick={() => setTimeframe("custom")}
-            className={`flex-1 min-w-[80px] py-2 text-sm font-bold rounded-lg transition-all ${timeframe === "custom" ? "bg-white shadow-md text-indigo-600" : "text-slate-500 hover:text-slate-700"}`}
-          >
-            ចន្លោះថ្ងៃ
-          </button>
         </div>
-
-        {timeframe === "month" && (
-          <div className="flex justify-center mb-4 relative print:hidden">
-            <input
-              type="month"
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              className="bg-white border-2 border-indigo-100 text-indigo-700 font-bold px-4 py-2 rounded-xl focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all cursor-pointer shadow-sm"
-            />
-          </div>
-        )}
 
         {timeframe === "custom" && (
           <div className="flex justify-center items-center gap-2 mb-4 relative print:hidden max-w-lg mx-auto">
@@ -316,6 +298,17 @@ export default function ExpenseTracker() {
               onChange={(e) => setEndDate(e.target.value)}
               className="w-1/2 bg-white border-2 border-indigo-100 text-indigo-700 font-bold px-3 py-2 rounded-xl focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all cursor-pointer shadow-sm"
               title="ថ្ងៃបញ្ចប់"
+            />
+          </div>
+        )}
+
+        {timeframe === "month" && (
+          <div className="flex justify-center mb-4 relative print:hidden">
+            <input
+              type="month"
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="bg-white border-2 border-indigo-100 text-indigo-700 font-bold px-4 py-2 rounded-xl focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all cursor-pointer shadow-sm"
             />
           </div>
         )}
@@ -428,9 +421,6 @@ export default function ExpenseTracker() {
             )}
           </div>
           <div className="space-y-3">
-            {/* ============================================================== */}
-            {/* ផ្នែកដែលបានកែប្រែ៖ បន្ថែម list attribute និង datalist សម្រាប់ Suggestion */}
-            {/* ============================================================== */}
             <div className="relative">
               <input
                 type="text"
@@ -441,7 +431,6 @@ export default function ExpenseTracker() {
                 className="w-full p-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 autoComplete="off"
               />
-              {/* បង្កើតបញ្ជីពាក្យដែលធ្លាប់បានវាយបញ្ចូល */}
               <datalist id="desc-suggestions">
                 {uniqueDescriptions.map((desc, idx) => (
                   <option key={idx} value={desc} />
