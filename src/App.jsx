@@ -40,6 +40,16 @@ export default function ExpenseTracker() {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
   });
 
+  // --- State ថ្មីសម្រាប់ផ្ទុកថ្ងៃចាប់ផ្តើម និងថ្ងៃបញ្ចប់ (សម្រាប់ Tab "ចន្លោះថ្ងៃ") ---
+  const [startDate, setStartDate] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`; // លំនាំដើម៖ ថ្ងៃទី១ នៃខែបច្ចុប្បន្ន
+  });
+  const [endDate, setEndDate] = useState(() => {
+    const d = new Date();
+    return d.toISOString().split("T")[0]; // លំនាំដើម៖ ថ្ងៃនេះ
+  });
+
   const EXCHANGE_RATE = 4000;
   const COLORS = [
     "#ef4444",
@@ -152,12 +162,15 @@ export default function ExpenseTracker() {
     }
   };
 
+  // --- អាប់ដេតមុខងារច្រោះទិន្នន័យ (Filter) សម្រាប់ជម្រើសចន្លោះថ្ងៃ ---
   const currentDate = new Date();
   const filteredTransactions = transactions.filter((t) => {
     if (timeframe === "all") return true;
+
     const tDate = t.createdAt?.toDate
       ? t.createdAt.toDate()
       : new Date(t.createdAt);
+
     if (timeframe === "month") {
       const [year, month] = selectedMonth.split("-");
       return (
@@ -165,9 +178,22 @@ export default function ExpenseTracker() {
         tDate.getMonth() === parseInt(month) - 1
       );
     }
+
     if (timeframe === "year") {
       return tDate.getFullYear() === currentDate.getFullYear();
     }
+
+    if (timeframe === "custom") {
+      // កំណត់ម៉ោងចាប់ផ្តើម និងបញ្ចប់ ដើម្បីឱ្យការច្រោះទិន្នន័យបានត្រឹមត្រូវពេញមួយថ្ងៃ
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+
+      return tDate >= start && tDate <= end;
+    }
+
     return true;
   });
 
@@ -209,42 +235,62 @@ export default function ExpenseTracker() {
     const worksheet = XLSX.utils.json_to_sheet(dataToExport);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Transactions");
-    const fileName =
-      timeframe === "month"
-        ? `Expense_Report_${selectedMonth}.xlsx`
-        : `Expense_Report_${timeframe}.xlsx`;
+
+    // បង្កើតឈ្មោះ File ទៅតាមជម្រើសពេលវេលា
+    let fileName = `Expense_Report_${timeframe}.xlsx`;
+    if (timeframe === "month")
+      fileName = `Expense_Report_${selectedMonth}.xlsx`;
+    if (timeframe === "custom")
+      fileName = `Expense_Report_${startDate}_to_${endDate}.xlsx`;
+
     XLSX.writeFile(workbook, fileName);
+  };
+
+  // មុខងារកំណត់ចំណងជើងផ្ទាំងសមតុល្យឱ្យត្រូវនឹងជម្រើស
+  const getBalanceTitle = () => {
+    if (timeframe === "month") return `សមតុល្យប្រចាំខែ ${selectedMonth}`;
+    if (timeframe === "year") return "សមតុល្យឆ្នាំនេះ";
+    if (timeframe === "custom")
+      return `សមតុល្យពីថ្ងៃ ${startDate} ដល់ ${endDate}`;
+    return "សមតុល្យសរុប";
   };
 
   return (
     <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4 font-sans print:bg-white print:p-0">
-      {/* បានពង្រីកពី max-w-lg ទៅ max-w-3xl ដើម្បីមានទំហំដាក់ទន្ទឹមគ្នា */}
       <div className="bg-white p-6 rounded-3xl shadow-xl w-full max-w-3xl print:shadow-none print:w-full print:max-w-none print:p-0">
         <h1 className="text-3xl font-extrabold text-center text-slate-800 mb-6 tracking-tight print:hidden">
           បញ្ជីចំណូលចំណាយ
         </h1>
 
-        <div className="flex bg-slate-100 p-1.5 rounded-xl mb-4 shadow-inner print:hidden max-w-lg mx-auto">
+        {/* របារជម្រើសពេលវេលា (បន្ថែមជម្រើស ចន្លោះថ្ងៃ) */}
+        <div className="flex flex-wrap bg-slate-100 p-1.5 rounded-xl mb-4 shadow-inner print:hidden max-w-lg mx-auto">
           <button
             onClick={() => setTimeframe("month")}
-            className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${timeframe === "month" ? "bg-white shadow-md text-indigo-600" : "text-slate-500 hover:text-slate-700"}`}
+            className={`flex-1 min-w-[80px] py-2 text-sm font-bold rounded-lg transition-all ${timeframe === "month" ? "bg-white shadow-md text-indigo-600" : "text-slate-500 hover:text-slate-700"}`}
           >
             ប្រចាំខែ
           </button>
           <button
             onClick={() => setTimeframe("year")}
-            className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${timeframe === "year" ? "bg-white shadow-md text-indigo-600" : "text-slate-500 hover:text-slate-700"}`}
+            className={`flex-1 min-w-[80px] py-2 text-sm font-bold rounded-lg transition-all ${timeframe === "year" ? "bg-white shadow-md text-indigo-600" : "text-slate-500 hover:text-slate-700"}`}
           >
             ឆ្នាំនេះ
           </button>
           <button
             onClick={() => setTimeframe("all")}
-            className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${timeframe === "all" ? "bg-white shadow-md text-indigo-600" : "text-slate-500 hover:text-slate-700"}`}
+            className={`flex-1 min-w-[80px] py-2 text-sm font-bold rounded-lg transition-all ${timeframe === "all" ? "bg-white shadow-md text-indigo-600" : "text-slate-500 hover:text-slate-700"}`}
           >
             សរុបទាំងអស់
           </button>
+          <button
+            onClick={() => setTimeframe("custom")}
+            className={`flex-1 min-w-[80px] py-2 text-sm font-bold rounded-lg transition-all ${timeframe === "custom" ? "bg-white shadow-md text-indigo-600" : "text-slate-500 hover:text-slate-700"}`}
+          >
+            ចន្លោះថ្ងៃ
+          </button>
         </div>
 
+        {/* ប្រអប់រើស ខែ (បង្ហាញតែពេលរើស ប្រចាំខែ) */}
         {timeframe === "month" && (
           <div className="flex justify-center mb-4 relative print:hidden">
             <input
@@ -252,6 +298,27 @@ export default function ExpenseTracker() {
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
               className="bg-white border-2 border-indigo-100 text-indigo-700 font-bold px-4 py-2 rounded-xl focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all cursor-pointer shadow-sm"
+            />
+          </div>
+        )}
+
+        {/* ប្រអប់រើស ចន្លោះថ្ងៃ (បង្ហាញតែពេលរើស ចន្លោះថ្ងៃ) */}
+        {timeframe === "custom" && (
+          <div className="flex justify-center items-center gap-2 mb-4 relative print:hidden max-w-lg mx-auto">
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="w-1/2 bg-white border-2 border-indigo-100 text-indigo-700 font-bold px-3 py-2 rounded-xl focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all cursor-pointer shadow-sm"
+              title="ថ្ងៃចាប់ផ្តើម"
+            />
+            <span className="font-bold text-slate-400 text-sm">ដល់</span>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="w-1/2 bg-white border-2 border-indigo-100 text-indigo-700 font-bold px-3 py-2 rounded-xl focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all cursor-pointer shadow-sm"
+              title="ថ្ងៃបញ្ចប់"
             />
           </div>
         )}
@@ -271,20 +338,13 @@ export default function ExpenseTracker() {
           </button>
         </div>
 
-        {/* ======================================================== */}
-        {/* ផ្នែកថ្មី៖ ដាក់ផ្ទាំង សមតុល្យ និង ក្រាប ទន្ទឹមគ្នា (Side-by-Side) */}
-        {/* ======================================================== */}
+        {/* ផ្ទាំង សមតុល្យ និង ក្រាប ទន្ទឹមគ្នា */}
         <div className="flex flex-col md:flex-row print:flex-row gap-4 mb-6 print:mb-4">
-          {/* ១. ផ្ទាំងបង្ហាញសមតុល្យ (ខាងឆ្វេង) */}
           <div
             className={`bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-6 rounded-2xl shadow-md print:shadow-none print:break-inside-avoid flex flex-col justify-center ${pieData.length > 0 ? "w-full md:w-1/2 print:w-1/2" : "w-full"}`}
           >
-            <p className="text-sm font-medium opacity-90 text-center">
-              {timeframe === "month"
-                ? `សមតុល្យប្រចាំខែ ${selectedMonth}`
-                : timeframe === "year"
-                  ? "សមតុល្យឆ្នាំនេះ"
-                  : "សមតុល្យសរុប"}
+            <p className="text-sm font-medium opacity-90 text-center truncate">
+              {getBalanceTitle()}
             </p>
             <div className="text-center my-2">
               <h2 className="text-4xl font-black">${balance.toFixed(2)}</h2>
@@ -312,7 +372,6 @@ export default function ExpenseTracker() {
             </div>
           </div>
 
-          {/* ២. ក្រាប Pie Chart (ខាងស្តាំ) */}
           {pieData.length > 0 && (
             <div className="w-full md:w-1/2 print:w-1/2 p-4 bg-slate-50 rounded-2xl border border-slate-100 print:border-none print:bg-white print:break-inside-avoid flex flex-col justify-center">
               <h3 className="text-center text-sm font-bold text-slate-600 mb-2">
@@ -348,7 +407,6 @@ export default function ExpenseTracker() {
             </div>
           )}
         </div>
-        {/* ======================================================== */}
 
         <form
           onSubmit={handleSubmit}
@@ -465,57 +523,68 @@ export default function ExpenseTracker() {
                 </span>
               </div>
               <ul className="space-y-3 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
-                {filteredTransactions.map((t) => (
-                  <li
-                    key={t.id}
-                    className="group flex justify-between items-center p-4 rounded-xl border shadow-sm hover:shadow-md transition-all relative overflow-hidden bg-white border-slate-100"
-                  >
-                    <div
-                      className={`absolute left-0 top-0 bottom-0 w-1.5 ${t.type === "income" ? "bg-green-500" : "bg-red-500"}`}
-                    ></div>
-                    <div className="flex flex-col pl-3 w-1/2">
-                      <span className="text-slate-800 font-bold text-md truncate">
-                        {t.text}
-                      </span>
-                      <span className="text-xs text-slate-500 font-medium mt-0.5">
-                        {t.date} •{" "}
-                        <span className="bg-slate-100 px-2 py-0.5 rounded text-slate-600">
-                          {t.category}
+                {filteredTransactions.length === 0 ? (
+                  <div className="text-center py-8 bg-slate-50 rounded-xl border border-dashed border-slate-300">
+                    <p className="text-slate-500 text-sm">
+                      មិនមានទិន្នន័យក្នុងចន្លោះពេលនេះទេ...
+                    </p>
+                  </div>
+                ) : (
+                  filteredTransactions.map((t) => (
+                    <li
+                      key={t.id}
+                      className="group flex justify-between items-center p-4 rounded-xl border shadow-sm hover:shadow-md transition-all relative overflow-hidden bg-white border-slate-100"
+                    >
+                      <div
+                        className={`absolute left-0 top-0 bottom-0 w-1.5 ${t.type === "income" ? "bg-green-500" : "bg-red-500"}`}
+                      ></div>
+                      <div className="flex flex-col pl-3 w-1/2">
+                        <span className="text-slate-800 font-bold text-md truncate">
+                          {t.text}
                         </span>
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="flex flex-col items-end">
-                        <span
-                          className={`font-black text-[17px] leading-tight ${t.type === "income" ? "text-green-500" : "text-red-500"}`}
-                        >
-                          {t.type === "income" ? "+" : "-"}$
-                          {t.amount.toFixed(2)}
-                        </span>
-                        <span
-                          className={`text-[11px] font-bold opacity-75 mt-0.5 ${t.type === "income" ? "text-green-600" : "text-red-600"}`}
-                        >
-                          {t.type === "income" ? "+" : "-"}
-                          {(t.amount * EXCHANGE_RATE).toLocaleString("km-KH")} ៛
+                        <span className="text-xs text-slate-500 font-medium mt-0.5">
+                          {t.date} •{" "}
+                          <span className="bg-slate-100 px-2 py-0.5 rounded text-slate-600">
+                            {t.category}
+                          </span>
                         </span>
                       </div>
-                      <div className="flex gap-1 border-l pl-2 border-slate-100">
-                        <button
-                          onClick={() => handleEdit(t)}
-                          className="text-blue-400 hover:text-blue-600 bg-blue-50 hover:bg-blue-100 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
-                        >
-                          ✏️
-                        </button>
-                        <button
-                          onClick={() => deleteTransaction(t.id)}
-                          className="text-red-400 hover:text-red-600 bg-red-50 hover:bg-red-100 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
-                        >
-                          ❌
-                        </button>
+                      <div className="flex items-center gap-3">
+                        <div className="flex flex-col items-end">
+                          <span
+                            className={`font-black text-[17px] leading-tight ${t.type === "income" ? "text-green-500" : "text-red-500"}`}
+                          >
+                            {t.type === "income" ? "+" : "-"}$
+                            {t.amount.toFixed(2)}
+                          </span>
+                          <span
+                            className={`text-[11px] font-bold opacity-75 mt-0.5 ${t.type === "income" ? "text-green-600" : "text-red-600"}`}
+                          >
+                            {t.type === "income" ? "+" : "-"}
+                            {(t.amount * EXCHANGE_RATE).toLocaleString(
+                              "km-KH",
+                            )}{" "}
+                            ៛
+                          </span>
+                        </div>
+                        <div className="flex gap-1 border-l pl-2 border-slate-100">
+                          <button
+                            onClick={() => handleEdit(t)}
+                            className="text-blue-400 hover:text-blue-600 bg-blue-50 hover:bg-blue-100 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            onClick={() => deleteTransaction(t.id)}
+                            className="text-red-400 hover:text-red-600 bg-red-50 hover:bg-red-100 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
+                          >
+                            ❌
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  </li>
-                ))}
+                    </li>
+                  ))
+                )}
               </ul>
             </div>
           )}
