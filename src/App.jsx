@@ -267,7 +267,7 @@ export default function ExpenseTracker() {
     <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4 font-sans print:bg-white print:p-0">
       <div className="bg-white p-6 rounded-3xl shadow-xl w-full max-w-3xl print:shadow-none print:w-full print:max-w-none print:p-0">
         <h1 className="text-3xl font-extrabold text-center text-slate-800 mb-6 tracking-tight print:hidden">
-          បញ្ជីចំណូលចំណាយ
+          បញ្ជីចំណូលចំណាយ V1.0
         </h1>
 
         <div className="flex flex-wrap bg-slate-100 p-1.5 rounded-xl mb-4 shadow-inner print:hidden max-w-lg mx-auto">
